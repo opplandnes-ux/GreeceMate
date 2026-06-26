@@ -910,17 +910,19 @@ button {
 
 .buyer-hero-inner {
   display: grid;
-  grid-template-columns: minmax(0, 1.18fr) minmax(300px, 0.82fr);
+  width: min(1180px, calc(100vw - 36px));
+  margin: 0 auto;
+  grid-template-columns: minmax(0, 1.22fr) minmax(300px, 0.78fr);
   gap: 30px;
   align-items: center;
-  min-height: 520px;
-  padding: 48px 0 40px;
+  min-height: 500px;
+  padding: 42px 0 38px;
 }
 
 .buyer-hero h1 {
-  max-width: 760px;
+  max-width: 720px;
   margin: 18px 0 14px;
-  font-size: clamp(34px, 4vw, 46px);
+  font-size: clamp(34px, 3vw, 42px);
   font-weight: 700;
   line-height: 1.16;
   letter-spacing: 0;
@@ -928,7 +930,7 @@ button {
 }
 
 .buyer-hero p {
-  max-width: 760px;
+  max-width: 720px;
   margin: 0;
   font-size: 16px;
   font-weight: 400;
