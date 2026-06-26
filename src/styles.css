@@ -202,9 +202,10 @@ button {
   position: relative;
   overflow: hidden;
   background:
-    linear-gradient(120deg, rgba(15, 42, 68, 0.86), rgba(0, 70, 113, 0.75)),
-    url("https://images.unsplash.com/photo-1601581875309-fafbf2d3ed3a?auto=format&fit=crop&w=1800&q=80");
-  background-position: center;
+    linear-gradient(90deg, rgba(15, 42, 68, 0.96) 0%, rgba(15, 42, 68, 0.9) 40%, rgba(15, 42, 68, 0.62) 68%, rgba(15, 42, 68, 0.34) 100%),
+    linear-gradient(180deg, rgba(0, 70, 113, 0.16), rgba(15, 42, 68, 0.5)),
+    url("../assets/images/hero-home.jpg");
+  background-position: center center;
   background-size: cover;
   color: var(--white);
 }
@@ -624,8 +625,8 @@ button {
 .services-hero {
   min-height: 176px;
   background:
-    linear-gradient(120deg, rgba(16, 36, 63, 0.94), rgba(24, 56, 93, 0.86)),
-    url("https://images.unsplash.com/photo-1601581875309-fafbf2d3ed3a?auto=format&fit=crop&w=1800&q=80");
+    linear-gradient(120deg, rgba(16, 36, 63, 0.94), rgba(24, 56, 93, 0.84)),
+    url("../assets/images/hero-services.jpg");
   background-position: center;
   background-size: cover;
   color: var(--white);
@@ -872,9 +873,10 @@ button {
 
 .buyer-hero {
   background:
-    linear-gradient(120deg, rgba(15, 42, 68, 0.9), rgba(0, 70, 113, 0.78)),
-    url("https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1800&q=80");
-  background-position: center;
+    linear-gradient(90deg, rgba(15, 42, 68, 0.96) 0%, rgba(15, 42, 68, 0.9) 45%, rgba(15, 42, 68, 0.64) 72%, rgba(15, 42, 68, 0.46) 100%),
+    linear-gradient(180deg, rgba(0, 70, 113, 0.12), rgba(15, 42, 68, 0.48)),
+    url("../assets/images/hero-buyer-service.jpg");
+  background-position: right center;
   background-size: cover;
   color: var(--white);
 }
@@ -1272,6 +1274,14 @@ button {
     padding: 32px 0 26px;
   }
 
+  .hero {
+    background-position: center bottom;
+  }
+
+  .buyer-hero {
+    background-position: 72% center;
+  }
+
   .hero h1,
   .buyer-hero h1 {
     font-size: clamp(30px, 8.4vw, 36px);
@@ -1334,8 +1344,9 @@ button {
   }
 
   .services-hero {
-    min-height: 168px;
+    min-height: 230px;
     padding: 24px 0 18px;
+    background-position: center center;
   }
 
   .services-hero h1 {
