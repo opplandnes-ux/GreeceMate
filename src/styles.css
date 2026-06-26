@@ -289,9 +289,9 @@ button {
 .hero-panel {
   justify-self: end;
   width: min(100%, 390px);
-  border: 1px solid rgba(255, 255, 255, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.075);
+  background: rgba(255, 255, 255, 0.06);
   padding: 18px 20px;
   box-shadow: none;
   backdrop-filter: blur(8px);
@@ -633,6 +633,11 @@ button {
   padding: 28px 0 22px;
 }
 
+.services-hero .container {
+  width: min(1180px, calc(100vw - 36px));
+  margin: 0 auto;
+}
+
 .services-hero-copy {
   max-width: 780px;
 }
@@ -655,9 +660,17 @@ button {
 
 .services-hero .tabs {
   margin-top: 18px;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.services-hero .tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .services-hero .tab {
+  flex: 0 0 auto;
   border-color: rgba(255, 255, 255, 0.24);
   background: rgba(255, 255, 255, 0.16);
   color: rgba(255, 255, 255, 0.94);
@@ -873,10 +886,10 @@ button {
 
 .buyer-hero {
   background:
-    linear-gradient(90deg, rgba(15, 42, 68, 0.97) 0%, rgba(15, 42, 68, 0.93) 45%, rgba(15, 42, 68, 0.76) 72%, rgba(15, 42, 68, 0.6) 100%),
-    linear-gradient(180deg, rgba(0, 70, 113, 0.16), rgba(15, 42, 68, 0.54)),
+    linear-gradient(90deg, rgba(15, 42, 68, 0.97) 0%, rgba(15, 42, 68, 0.94) 45%, rgba(15, 42, 68, 0.79) 72%, rgba(15, 42, 68, 0.66) 100%),
+    linear-gradient(180deg, rgba(0, 70, 113, 0.18), rgba(15, 42, 68, 0.58)),
     url("../assets/images/hero-buyer-service.jpg");
-  background-position: 86% center;
+  background-position: 90% center;
   background-size: cover;
   color: var(--white);
 }
@@ -1279,7 +1292,7 @@ button {
   }
 
   .buyer-hero {
-    background-position: 78% center;
+    background-position: 82% center;
   }
 
   .hero h1,
@@ -1360,6 +1373,8 @@ button {
   .services-hero .tabs {
     margin-top: 14px;
     flex-wrap: nowrap;
+    margin-left: 0;
+    margin-right: 0;
   }
 
   .services-grid-section {
