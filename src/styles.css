@@ -202,8 +202,8 @@ button {
   position: relative;
   overflow: hidden;
   background:
-    linear-gradient(90deg, rgba(15, 42, 68, 0.96) 0%, rgba(15, 42, 68, 0.9) 40%, rgba(15, 42, 68, 0.62) 68%, rgba(15, 42, 68, 0.34) 100%),
-    linear-gradient(180deg, rgba(0, 70, 113, 0.16), rgba(15, 42, 68, 0.5)),
+    linear-gradient(90deg, rgba(15, 42, 68, 0.96) 0%, rgba(15, 42, 68, 0.88) 40%, rgba(15, 42, 68, 0.54) 68%, rgba(15, 42, 68, 0.3) 100%),
+    linear-gradient(180deg, rgba(0, 70, 113, 0.2), rgba(15, 42, 68, 0.46)),
     url("../assets/images/hero-home.jpg");
   background-position: center center;
   background-size: cover;
@@ -873,10 +873,10 @@ button {
 
 .buyer-hero {
   background:
-    linear-gradient(90deg, rgba(15, 42, 68, 0.96) 0%, rgba(15, 42, 68, 0.9) 45%, rgba(15, 42, 68, 0.64) 72%, rgba(15, 42, 68, 0.46) 100%),
-    linear-gradient(180deg, rgba(0, 70, 113, 0.12), rgba(15, 42, 68, 0.48)),
+    linear-gradient(90deg, rgba(15, 42, 68, 0.97) 0%, rgba(15, 42, 68, 0.93) 45%, rgba(15, 42, 68, 0.76) 72%, rgba(15, 42, 68, 0.6) 100%),
+    linear-gradient(180deg, rgba(0, 70, 113, 0.16), rgba(15, 42, 68, 0.54)),
     url("../assets/images/hero-buyer-service.jpg");
-  background-position: right center;
+  background-position: 86% center;
   background-size: cover;
   color: var(--white);
 }
@@ -1279,7 +1279,7 @@ button {
   }
 
   .buyer-hero {
-    background-position: 72% center;
+    background-position: 78% center;
   }
 
   .hero h1,
