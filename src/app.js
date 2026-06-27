@@ -334,25 +334,23 @@ function renderBuyerService() {
   shell(`
     <main>
       ${buyerHero()}
-      <section class="section">
-        <div class="container">
-          <div class="section-head">
-            <div>
-              <h2>自己选到房，不等于自己能安全完成交易</h2>
+      <section class="section buyer-value-section">
+        <div class="container buyer-value-shell">
+          <div class="buyer-value-intro">
+            <div class="buyer-value-copy">
+              <h2>自己选到房，也需要有人站在买方一侧控风险</h2>
               <p class="section-desc">希腊购房与黄金签证链路很长，真正的风险往往发生在定金、尽调、付款、登记和交付之间。</p>
+              <div class="buyer-role-note">
+                <span class="tag gold">Buyer Representative</span>
+                <h3>我们不是传统中介，而是客户侧买方代表</h3>
+                <p>GreeceMate Buyer Service 的角色不是替客户决定买哪套房，而是站在买方一侧，帮助客户判断房源风险、交易条件、付款节点、黄金签证适配性和后续资产落地路径。</p>
+              </div>
             </div>
+            <div class="buyer-core-sentence">客户自选房源，我们负责安全成交与长期护航。</div>
           </div>
-          <div class="grid buyer-pain-grid">${BUYER_PAIN_POINTS.map((item) => `<div class="card buyer-pain-card"><span class="dot-mini"></span><h3>${item}</h3></div>`).join("")}</div>
-        </div>
-      </section>
-      <section class="section alt">
-        <div class="container buyer-position">
-          <div>
-            <span class="tag gold">Buyer Representative</span>
-            <h2>我们不是传统中介，而是客户侧买方代表</h2>
-            <p>GreeceMate Buyer Service 的角色不是替客户决定买哪套房，而是站在买方一侧，帮助客户判断房源风险、交易条件、付款节点、黄金签证适配性和后续资产落地路径。</p>
+          <div class="buyer-risk-grid" aria-label="买方风险检查清单">
+            ${BUYER_PAIN_POINTS.map((item) => `<div class="buyer-risk-item"><span class="dot-mini" aria-hidden="true"></span><span>${item}</span></div>`).join("")}
           </div>
-          <div class="buyer-core-sentence">客户自选房源，我们负责安全成交与长期护航。</div>
         </div>
       </section>
       <section class="section" id="buyer-flow">
