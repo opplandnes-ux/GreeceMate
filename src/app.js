@@ -49,33 +49,43 @@ function shell(content) {
 function footer() {
   return `
     <footer class="footer" id="contact">
-      <div class="container footer-grid">
+      <div class="container footer-cta">
         <div>
-          <div class="brand">
+          <h2>不确定该选哪个服务？</h2>
+          <p>复杂问题可以先提交需求，由客服人工确认服务方式、时间和资料要求。</p>
+        </div>
+        <a class="primary-btn js-scroll" href="#footer-contact" data-scroll-target="footer-contact">加微信或 WhatsApp 咨询</a>
+      </div>
+      <div class="container footer-grid">
+        <div class="footer-brand-column">
+          <div class="brand footer-brand">
             <span class="brand-mark">希</span>
             <span>
               <span class="brand-title">${BRAND.fullName}</span>
               <span class="brand-sub">${BRAND.poweredBy}</span>
             </span>
           </div>
-          <p>公司名称：${BRAND.company}</p>
-          <p>官网域名：${BRAND.domain}</p>
-          <p>公司地址：${BRAND.address}</p>
-          <p>公司电话：${BRAND.phone}</p>
-          <p>邮箱：${BRAND.email}</p>
+          <p class="footer-slogan">${BRAND.slogan}</p>
+          <div class="footer-company-meta">
+            <p>公司：${BRAND.company}</p>
+            <p>地址：${BRAND.address}</p>
+            <p>电话：${BRAND.phone}</p>
+            <p>邮箱：${BRAND.email}</p>
+            <p>官网域名：${BRAND.domain}</p>
+          </div>
         </div>
-        <div>
+        <div class="footer-service-column">
           <h3>服务说明</h3>
-          <p>本平台提供本地服务协助、预约、陪同、资料整理、提醒、核验和代缴协助，具体结果以相关机构或第三方供应商最终要求为准。</p>
-          <p>政府、银行、居留相关事项以相关机构最终要求为准。</p>
+          <p>本平台提供本地服务协助、预约、陪同、资料整理、提醒、核验和代缴协助。</p>
+          <p>政府、银行、居留、物业、维修、票务等事项以相关机构或第三方最终要求为准。</p>
         </div>
-        <div>
+        <div class="footer-contact-column" id="footer-contact">
           <h3>联系客服</h3>
           <div class="qr-row">
             <div class="qr"><img src="${BRAND.wechatQr}" alt="微信二维码" /><span>微信</span></div>
             <div class="qr"><img src="${BRAND.whatsappQr}" alt="WhatsApp 二维码" /><span>WhatsApp</span></div>
           </div>
-          <p>服务时间：周一至周六 09:30-18:30</p>
+          <p>服务时间：周一至周六 09:30–18:30</p>
           <p>紧急服务：钥匙、漏水、停电停网等情况可先提交需求，由人工确认响应方式。</p>
         </div>
       </div>
