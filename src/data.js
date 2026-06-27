@@ -9,8 +9,8 @@ const BRAND = {
   poweredBy: "Powered by SUNMIX GROUP",
   address: "Voulis 22, Athens 105 63, Greece",
   phone: "+30 210 324 9379",
-  wechatQr: "./assets/wechat-michael.png",
-  whatsappQr: "./assets/whatsapp-xia.jpg",
+  wechatQr: "./assets/images/qr-wechat.png",
+  whatsappQr: "./assets/images/qr-whatsapp.png",
 };
 
 const ADMIN_USERS = ["客服-Alex Nan", "房管-SUA", "出行顾问-Vivian", "办事顾问-Maria & KK"];

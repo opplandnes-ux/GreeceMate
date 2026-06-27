@@ -50,8 +50,9 @@ xiyoubang-mvp/
 ├── buyer-service/
 │   └── index.html
 ├── assets/
-│   ├── wechat-michael.png
-│   └── whatsapp-xia.jpg
+│   └── images/
+│       ├── qr-wechat.png
+│       └── qr-whatsapp.png
 └── src/
     ├── app.js
     ├── data.js
