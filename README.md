@@ -1,6 +1,6 @@
 # 希友帮｜GreeceMate MVP 原型
 
-这是「希友帮｜GreeceMate｜中国人在希腊的本地服务助手」第一阶段 MVP 原型。当前版本为零依赖响应式 Web App，适合直接演示首页、服务浏览、下单、订单状态和后台管理流程。
+这是「希友帮｜GreeceMate｜中国人在希腊的本地服务助手」第一阶段 MVP。当前版本已加入 Cloudflare Pages Functions + D1 服务端订单层，页面仍可静态浏览，正式订单以 D1 为准。
 
 ## 品牌与域名
 
@@ -12,22 +12,24 @@
 
 ## 如何运行
 
-直接用浏览器打开：
+仅查看静态页面可直接用浏览器打开：
 
 ```bash
 open index.html
 ```
 
-也可以在本目录启动任意静态服务器：
+需要测试正式订单 API 时，请安装依赖、初始化本地 D1 并启动 Wrangler：
 
 ```bash
-python3 -m http.server 5173
+npm install
+npm run d1:migrate:local
+npm run dev
 ```
 
 然后访问：
 
 ```text
-http://localhost:5173
+http://localhost:8788
 ```
 
 ## 已实现页面
@@ -77,11 +79,23 @@ xiyoubang-mvp/
 11. 希腊船票代订协助
 12. 希腊自由行行程定制咨询
 
-订单暂存在浏览器 `localStorage`，键名为：
+正式订单写入 Cloudflare D1。浏览器 `localStorage` 仅保存订单查看令牌和显示缓存，键名为：
 
 ```text
 xiyoubang.orders.v1
 ```
+
+## Cloudflare D1 部署配置
+
+1. 在 Cloudflare 控制台创建 D1 数据库 `greecemate-orders`。
+2. 在 GreeceMate Pages 项目的 Settings > Bindings 中添加 D1 binding，变量名必须为 `DB`。
+3. 在 Pages Settings > Variables and Secrets 中添加加密变量：
+   - `ORDER_TOKEN_SECRET`：至少 32 位随机字符；
+   - `ADMIN_SECRET`：后台过渡期管理员凭证。
+4. `GOOGLE_APPS_SCRIPT_ENDPOINT` 已保持为现有地址，可由环境变量覆盖，但不要更换现有生产 URL。
+5. 使用 Cloudflare 控制台或已登录的 Wrangler 应用 `migrations/0001_orders.sql`。
+
+生产环境不要提交 `.dev.vars`、真实密钥或数据库凭证。
 
 ## 后续接入建议
 

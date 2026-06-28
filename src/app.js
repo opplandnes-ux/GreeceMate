@@ -195,6 +195,15 @@ function compactText(text, maxLength = 24) {
   return `${text.slice(0, maxLength)}...`;
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function serviceCard(service) {
   return `
     <article class="service-card">
@@ -487,6 +496,7 @@ function renderBuyerService() {
 
 async function submitBuyerServiceLead(form) {
   const result = document.querySelector("#buyerFormResult");
+  const submitButton = form.querySelector('button[type="submit"]');
   const formValues = Object.fromEntries(new FormData(form).entries());
   const payload = {
     ...formValues,
@@ -518,29 +528,32 @@ async function submitBuyerServiceLead(form) {
     sourcePage: "buyer-service",
   };
 
-  if (BUYER_SERVICE_GOOGLE_SHEET_ENDPOINT) {
-    try {
-      const response = await fetch(BUYER_SERVICE_GOOGLE_SHEET_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-        body: new URLSearchParams(payload).toString(),
-      });
-      if (!response.ok) {
-        throw new Error(`Submit failed: ${response.status}`);
-      }
-      form.reset();
-      result.textContent = "房源初筛申请已提交。团队将根据您提供的资料进行初步判断，并与您联系确认下一步服务方案。";
-      return;
-    } catch (error) {
-      result.textContent = "在线提交暂时不可用，请使用已打开的邮件窗口发送房源信息。";
-    }
-  } else {
-    result.textContent = "请在已打开的邮件窗口中发送房源信息，团队收到后将联系您确认下一步服务方案。";
-  }
+  submitButton.disabled = true;
+  submitButton.textContent = "正在提交...";
+  result.textContent = "";
 
-  const subject = encodeURIComponent("GreeceMate Buyer Service 房源初筛申请");
-  const body = encodeURIComponent(formatBuyerServiceLead(payload));
-  window.location.href = `mailto:${BUYER_SERVICE_FALLBACK_EMAIL}?subject=${subject}&body=${body}`;
+  try {
+    const response = await submitOrderToServer(
+      {
+        ...payload,
+        orderType: "buyerService",
+        serviceId: "buyer-service",
+        serviceName: "GreeceMate Buyer Service",
+        customerName: payload.name,
+        goldenVisaPlan: payload.goldenVisa,
+        currentStage: payload.stage,
+      },
+      getSubmissionKey(form),
+    );
+    form.reset();
+    delete form.dataset.submissionKey;
+    result.textContent = `房源初筛申请已提交。订单号：${response.orderNumber}。团队将根据您提供的资料进行初步判断，并与您联系确认下一步服务方案。`;
+  } catch (error) {
+    result.textContent = error instanceof Error ? error.message : "订单提交失败，请稍后重试。";
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = "提交房源初筛申请";
+  }
 }
 
 function formatBuyerServiceLead(payload) {
@@ -828,14 +841,15 @@ function renderOrderForm(serviceId) {
     submitButton.textContent = "正在提交...";
     result.textContent = "";
 
-    const submitted = await submitServiceOrder(payload);
-    if (submitted) {
-      const order = createOrder(formValues);
-      navigate(`/order-success?order=${order.id}`);
+    try {
+      const submitted = await submitServiceOrder(payload, getSubmissionKey(formElement));
+      delete formElement.dataset.submissionKey;
+      navigate(`/order-success?order=${submitted.orderId}`);
       return;
+    } catch (error) {
+      result.textContent = error instanceof Error ? error.message : "订单提交失败，请稍后重试。";
     }
 
-    result.textContent = "在线提交暂时不可用，请使用已打开的邮件窗口发送服务需求。";
     submitButton.disabled = false;
     submitButton.textContent = "提交订单";
   });
@@ -843,9 +857,10 @@ function renderOrderForm(serviceId) {
 
 function buildServiceOrderPayload(formValues, service, category) {
   const submittedAt = new Date().toISOString();
-  const notes = [formValues.description, formValues.note].filter(Boolean).join("\n\n备注：");
   return {
     ...formValues,
+    orderType: "serviceOrder",
+    serviceId: service.id,
     formType: "serviceOrder",
     submittedAt,
     serviceCategory: category ? category.title : "",
@@ -858,7 +873,7 @@ function buildServiceOrderPayload(formValues, service, category) {
     serviceAddress: [formValues.country, formValues.city].filter(Boolean).join(" / "),
     preferredTime: formValues.preferredTime || "",
     urgent: formValues.urgent || "否",
-    notes,
+    notes: formValues.note || "",
     source: `${window.location.pathname}${window.location.search}`,
     sourcePage: window.location.href,
     status: "新提交",
@@ -867,26 +882,8 @@ function buildServiceOrderPayload(formValues, service, category) {
   };
 }
 
-async function submitServiceOrder(payload) {
-  if (BUYER_SERVICE_GOOGLE_SHEET_ENDPOINT) {
-    try {
-      const response = await fetch(BUYER_SERVICE_GOOGLE_SHEET_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-        body: new URLSearchParams(payload).toString(),
-      });
-      if (!response.ok) {
-        throw new Error(`Submit failed: ${response.status}`);
-      }
-      return true;
-    } catch (error) {
-      openServiceOrderFallbackEmail(payload);
-      return false;
-    }
-  }
-
-  openServiceOrderFallbackEmail(payload);
-  return false;
+async function submitServiceOrder(payload, idempotencyKey) {
+  return submitOrderToServer(payload, idempotencyKey);
 }
 
 function openServiceOrderFallbackEmail(payload) {
@@ -936,7 +933,7 @@ function renderOrderSuccess() {
           <div class="card success-box">
             <div class="success-mark">✓</div>
             <h1>订单提交成功</h1>
-            <p>订单号：${order.id}</p>
+            <p>订单号：${escapeHtml(order.orderNumber || order.id)}</p>
             <p>客服会根据你提交的信息确认服务时间、资料要求和费用说明。</p>
           </div>
           <div class="grid two" style="margin-top:16px">
@@ -944,7 +941,7 @@ function renderOrderSuccess() {
               <h2>订单确认</h2>
               <p><strong>服务名称：</strong>${order.serviceName}</p>
               <p><strong>预约金额 / 待报价：</strong>${order.priceText}</p>
-              <p><strong>用户信息：</strong>${order.customer.name}，${order.customer.wechat}，${order.customer.email}</p>
+              <p><strong>用户信息：</strong>${escapeHtml(order.customer.name)}，${escapeHtml(order.customer.wechat)}，${escapeHtml(order.customer.email)}</p>
               <p><strong>服务说明：</strong>本订单为服务需求提交，费用和时间需经客服确认。</p>
               <p><strong>免责声明：</strong>${COMPLIANCE_TEXT}</p>
             </section>
@@ -969,7 +966,6 @@ function renderOrderSuccess() {
 }
 
 function renderOrders() {
-  const orders = getOrders();
   shell(`
     <main>
       <div class="container page-title">
@@ -977,12 +973,23 @@ function renderOrders() {
         <p class="section-desc">展示订单流转：新订单、确认、补资料、报价、付款、派单、执行、客户确认、完成或售后。</p>
       </div>
       <section class="section" style="padding-top:0">
-        <div class="container">
-          ${orders.length ? orders.map(userOrderCard).join("") : `<div class="card empty">还没有订单。<a href="/services">去选择服务</a></div>`}
-        </div>
+        <div class="container" id="userOrdersList"><div class="card empty">正在同步订单状态...</div></div>
       </section>
     </main>
   `);
+  syncUserOrders()
+    .then((orders) => renderUserOrdersList(orders))
+    .catch(() => renderUserOrdersList(getOrders(), true));
+}
+
+function renderUserOrdersList(orders, syncFailed = false) {
+  const target = document.querySelector("#userOrdersList");
+  if (!target) return;
+  const pending = syncFailed || orders.some((order) => order.syncStatus === "pending");
+  target.innerHTML = `
+    ${pending ? '<div class="notice" style="margin-bottom:16px">服务端状态暂时无法同步，以下为本地缓存，状态待同步。</div>' : ""}
+    ${orders.length ? orders.map(userOrderCard).join("") : `<div class="card empty">还没有订单。<a href="/services">去选择服务</a></div>`}
+  `;
 }
 
 function userOrderCard(order) {
@@ -991,9 +998,9 @@ function userOrderCard(order) {
     <article class="card detail-block" style="margin-bottom:16px">
       <div class="section-head">
         <div>
-          <span class="status-pill">${order.status}</span>
-          <h2>${order.serviceName}</h2>
-          <p>订单号：${order.id}｜提交时间：${new Date(order.createdAt).toLocaleString("zh-CN")}</p>
+          <span class="status-pill">${escapeHtml(order.status)}</span>
+          <h2>${escapeHtml(order.serviceName)}</h2>
+          <p>订单号：${escapeHtml(order.orderNumber || order.id)}｜提交时间：${new Date(order.createdAt).toLocaleString("zh-CN")}</p>
         </div>
       </div>
       <div class="timeline">
@@ -1007,15 +1014,15 @@ function userOrderCard(order) {
 }
 
 function renderAdmin() {
+  if (!getAdminSecret()) return renderAdminLogin("/admin");
   const { params } = route();
   const filter = params.get("filter") || "全部";
-  const orders = getOrders();
-  const filtered = filterOrders(orders, filter);
+  const search = params.get("search") || "";
   shell(`
     <main>
       <div class="container page-title">
         <h1>后台订单管理</h1>
-        <p class="section-desc">预留管理员登录逻辑：当前为 MVP 演示模式，后续可接入账号权限、数据库和通知系统。</p>
+        <p class="section-desc">订单以服务端 D1 为准。当前管理员凭证为过渡方案，正式支付前将升级访问控制。</p>
       </div>
       <section class="section" style="padding-top:0">
         <div class="container admin-grid">
@@ -1024,30 +1031,89 @@ function renderAdmin() {
             <div class="filter-list">
               ${["全部", "新订单", "待处理", "执行中", "已完成", "已取消"].map((item) => `<a class="ghost-btn ${filter === item ? "active" : ""}" href="/admin?filter=${item}">${item}</a>`).join("")}
             </div>
-            <div class="notice" style="margin-top:16px">管理员登录预留：后续可在此接入手机号、邮箱验证码或企业微信登录。</div>
+            <form id="adminSearchForm" style="margin-top:16px">
+            <div class="field"><label for="adminSearch">按订单号或客户搜索</label><input id="adminSearch" name="search" value="${escapeHtml(search)}" /></div>
+              <button class="ghost-btn" type="submit">搜索</button>
+            </form>
+            <button class="ghost-btn" id="adminLogout" type="button" style="margin-top:12px">退出后台</button>
           </aside>
           <section class="admin-panel">
             <div class="section-head"><h2>订单列表</h2><a class="primary-btn" href="/services">创建测试订单</a></div>
-            ${
-              filtered.length
-                ? `<div class="table-wrap"><table class="orders-table"><thead><tr><th>订单</th><th>客户</th><th>状态</th><th>负责人</th><th>操作</th></tr></thead><tbody>${filtered
-                    .map(
-                      (order) => `<tr>
-                        <td><strong>${order.serviceName}</strong><br />${order.id}</td>
-                        <td>${order.customer.name}<br />${order.customer.wechat || order.customer.email}</td>
-                        <td><span class="status-pill">${order.status}</span>${order.admin.urgent ? '<br /><span class="tag gold">加急</span>' : ""}${order.admin.paid ? '<br /><span class="tag green">已付款</span>' : ""}</td>
-                        <td>${order.admin.owner || "未分派"}</td>
-                        <td><a class="ghost-btn" href="/admin/${order.id}">查看详情</a></td>
-                      </tr>`,
-                    )
-                    .join("")}</tbody></table></div>`
-                : `<div class="empty">暂无符合条件的订单。</div>`
-            }
+            <div id="adminOrdersList" class="empty">正在读取服务端订单...</div>
           </section>
         </div>
       </section>
     </main>
   `);
+  document.querySelector("#adminSearchForm").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const value = new FormData(event.currentTarget).get("search") || "";
+    navigate(`/admin?filter=${encodeURIComponent(filter)}&search=${encodeURIComponent(value)}`);
+  });
+  document.querySelector("#adminLogout").addEventListener("click", () => {
+    clearAdminSecret();
+    renderAdminLogin("/admin");
+  });
+  fetchAdminOrders({ search })
+    .then((orders) => renderAdminOrdersList(filterOrders(orders, filter)))
+    .catch((error) => {
+      if (!getAdminSecret()) return renderAdminLogin("/admin");
+      renderAdminOrdersList(filterOrders(getOrders(), filter), error.message);
+    });
+}
+
+function renderAdminLogin(returnPath) {
+  shell(`
+    <main>
+      <section class="section">
+        <div class="container" style="max-width:560px">
+          <form class="form-panel" id="adminLoginForm">
+            <h1>管理员登录</h1>
+            <p class="section-desc">请输入 Cloudflare 中配置的管理员凭证。</p>
+            <div class="field"><label for="adminSecret">管理员凭证</label><input id="adminSecret" name="adminSecret" type="password" required autocomplete="current-password" /></div>
+            <button class="primary-btn" type="submit">进入后台</button>
+            <p id="adminLoginResult" class="form-result" aria-live="polite"></p>
+          </form>
+        </div>
+      </section>
+    </main>
+  `);
+  document.querySelector("#adminLoginForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const secret = String(new FormData(event.currentTarget).get("adminSecret") || "");
+    setAdminSecret(secret);
+    try {
+      await fetchAdminOrders();
+      navigate(returnPath, { replace: true });
+    } catch (error) {
+      clearAdminSecret();
+      document.querySelector("#adminLoginResult").textContent = error instanceof Error ? error.message : "管理员凭证无效。";
+    }
+  });
+}
+
+function renderAdminOrdersList(orders, warning = "") {
+  const target = document.querySelector("#adminOrdersList");
+  if (!target) return;
+  target.className = "";
+  target.innerHTML = `
+    ${warning ? `<div class="notice" style="margin-bottom:16px">服务端读取失败，当前显示本地缓存：${escapeHtml(warning)}</div>` : ""}
+    ${
+      orders.length
+        ? `<div class="table-wrap"><table class="orders-table"><thead><tr><th>订单</th><th>客户</th><th>状态</th><th>负责人</th><th>操作</th></tr></thead><tbody>${orders
+            .map(
+              (order) => `<tr>
+                <td><strong>${escapeHtml(order.serviceName)}</strong><br />${escapeHtml(order.orderNumber || order.id)}</td>
+                <td>${escapeHtml(order.customer.name)}<br />${escapeHtml(order.customer.wechat || order.customer.contact || order.customer.email)}</td>
+                <td><span class="status-pill">${escapeHtml(order.status)}</span>${order.admin?.urgent ? '<br /><span class="tag gold">加急</span>' : ""}${order.paymentStatus === "paid" ? '<br /><span class="tag green">已付款</span>' : ""}${order.notificationStatus === "failed" ? '<br /><span class="tag gold">通知失败</span>' : ""}</td>
+                <td>${escapeHtml(order.admin?.owner || "未分派")}</td>
+                <td><a class="ghost-btn" href="/admin/${order.id}">查看详情</a></td>
+              </tr>`,
+            )
+            .join("")}</tbody></table></div>`
+        : `<div class="empty">暂无符合条件的订单。</div>`
+    }
+  `;
 }
 
 function filterOrders(orders, filter) {
@@ -1058,61 +1124,79 @@ function filterOrders(orders, filter) {
 }
 
 function renderAdminDetail(orderId) {
-  const order = getOrder(orderId);
-  if (!order) return renderNotFound();
+  if (!getAdminSecret()) return renderAdminLogin(`/admin/${orderId}`);
   shell(`
     <main>
       <div class="container page-title">
         <h1>订单详情</h1>
-        <p class="section-desc">${order.id}｜${order.serviceName}</p>
+        <p class="section-desc">服务端订单状态与处理记录</p>
       </div>
       <section class="section" style="padding-top:0">
-        <div class="container detail-layout">
-          <section class="form-panel">
-            <h2>修改订单状态与派单</h2>
-            <form id="adminForm" class="form-grid">
-              <div class="field"><label for="status">订单状态</label><select id="status" name="status">${ORDER_STATUSES.map((status) => `<option ${status === order.status ? "selected" : ""}>${status}</option>`).join("")}</select></div>
-              <div class="field"><label for="owner">分派负责人</label><select id="owner" name="owner"><option value="">未分派</option>${ADMIN_USERS.map((user) => `<option ${user === order.admin.owner ? "selected" : ""}>${user}</option>`).join("")}</select></div>
-              <div class="field"><label for="urgent">标记是否加急</label><select id="urgent" name="urgent"><option value="false" ${!order.admin.urgent ? "selected" : ""}>否</option><option value="true" ${order.admin.urgent ? "selected" : ""}>是</option></select></div>
-              <div class="field"><label for="paid">标记是否已付款</label><select id="paid" name="paid"><option value="false" ${!order.admin.paid ? "selected" : ""}>否</option><option value="true" ${order.admin.paid ? "selected" : ""}>是</option></select></div>
-              <div class="field full"><label for="internalNote">内部备注</label><textarea id="internalNote" name="internalNote">${order.admin.internalNote || ""}</textarea></div>
-              <div class="field full"><label for="result">服务结果说明</label><textarea id="result" name="result">${order.admin.result || ""}</textarea></div>
-              <div class="field full"><button class="primary-btn" type="submit">保存修改</button></div>
-            </form>
-          </section>
-          <aside class="card detail-block side-box">
-            <h2>客户与需求</h2>
-            <p><strong>客户：</strong>${order.customer.name}</p>
-            <p><strong>微信：</strong>${order.customer.wechat}</p>
-            <p><strong>WhatsApp：</strong>${order.customer.whatsapp || "未填写"}</p>
-            <p><strong>邮箱：</strong>${order.customer.email}</p>
-            <p><strong>国家 / 城市：</strong>${order.customer.country} / ${order.customer.city}</p>
-            <p><strong>希望时间：</strong>${order.request.preferredTime}</p>
-            <p><strong>中文陪同：</strong>${order.request.chineseCompanion ? "需要" : "不需要"}</p>
-            <p><strong>上传资料：</strong>${order.request.uploadNeeded ? "需要" : "不需要"}</p>
-            <p><strong>需求描述：</strong>${order.request.description}</p>
-            <p><strong>备注：</strong>${order.request.note || "无"}</p>
-            <div class="card-actions"><a class="ghost-btn" href="/admin">返回后台</a><a class="ghost-btn" href="/orders">用户状态页</a></div>
-          </aside>
-        </div>
+        <div class="container" id="adminDetailContent"><div class="card empty">正在读取订单...</div></div>
       </section>
     </main>
   `);
-  document.querySelector("#adminForm").addEventListener("submit", (event) => {
+  fetchAdminOrder(orderId)
+    .then((order) => renderAdminDetailForm(order))
+    .catch((error) => {
+      const cached = getOrder(orderId);
+      if (cached) renderAdminDetailForm(cached, `服务端读取失败，当前显示本地缓存：${error.message}`);
+      else document.querySelector("#adminDetailContent").innerHTML = `<div class="card empty">${error.message}</div>`;
+    });
+}
+
+function renderAdminDetailForm(order, warning = "") {
+  const target = document.querySelector("#adminDetailContent");
+  if (!target) return;
+  target.className = "container detail-layout";
+  target.innerHTML = `
+    <section class="form-panel">
+      ${warning ? `<div class="notice" style="margin-bottom:16px">${escapeHtml(warning)}</div>` : ""}
+      <h2>修改订单状态与派单</h2>
+      <p class="section-desc">${escapeHtml(order.orderNumber || order.id)}｜${escapeHtml(order.serviceName)}</p>
+      <form id="adminForm" class="form-grid">
+        <div class="field"><label for="status">订单状态</label><select id="status" name="status">${ORDER_STATUSES.map((status) => `<option ${status === order.status ? "selected" : ""}>${status}</option>`).join("")}</select></div>
+        <div class="field"><label for="owner">分派负责人</label><select id="owner" name="owner"><option value="">未分派</option>${ADMIN_USERS.map((user) => `<option ${user === order.admin?.owner ? "selected" : ""}>${user}</option>`).join("")}</select></div>
+        <div class="field"><label for="urgent">标记是否加急</label><select id="urgent" name="urgent"><option value="false" ${!order.admin?.urgent ? "selected" : ""}>否</option><option value="true" ${order.admin?.urgent ? "selected" : ""}>是</option></select></div>
+        <div class="field"><label>支付状态</label><input value="${order.paymentStatus === "paid" ? "已支付" : "未支付"}" disabled /></div>
+        <div class="field full"><label for="internalNote">内部备注</label><textarea id="internalNote" name="internalNote">${escapeHtml(order.admin?.internalNote || "")}</textarea></div>
+        <div class="field full"><label for="result">服务结果说明</label><textarea id="result" name="result">${escapeHtml(order.admin?.result || "")}</textarea></div>
+        <div class="field full"><button class="primary-btn" type="submit">保存修改</button></div>
+      </form>
+      <p id="adminFormResult" class="form-result" aria-live="polite"></p>
+    </section>
+    <aside class="card detail-block side-box">
+      <h2>客户与需求</h2>
+      <p><strong>客户：</strong>${escapeHtml(order.customer.name)}</p>
+      <p><strong>微信：</strong>${escapeHtml(order.customer.wechat || order.customer.contact || "未填写")}</p>
+      <p><strong>WhatsApp：</strong>${escapeHtml(order.customer.whatsapp || "未填写")}</p>
+      <p><strong>邮箱：</strong>${escapeHtml(order.customer.email || "未填写")}</p>
+      <p><strong>国家 / 城市：</strong>${escapeHtml(order.customer.country || "")} / ${escapeHtml(order.customer.city || "")}</p>
+      <p><strong>希望时间：</strong>${escapeHtml(order.request.preferredTime || "未填写")}</p>
+      <p><strong>中文陪同：</strong>${order.request.chineseCompanion ? "需要" : "不需要"}</p>
+      <p><strong>上传资料：</strong>${order.request.uploadNeeded ? "需要" : "不需要"}</p>
+      <p><strong>需求描述：</strong>${escapeHtml(order.request.description || "未填写")}</p>
+      <p><strong>备注：</strong>${escapeHtml(order.request.note || "无")}</p>
+      <div class="card-actions"><a class="ghost-btn" href="/admin">返回后台</a><a class="ghost-btn" href="/orders">用户状态页</a></div>
+    </aside>
+  `;
+  document.querySelector("#adminForm").addEventListener("submit", async (event) => {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(event.currentTarget).entries());
-    updateOrder(order.id, (current) => ({
-      status: data.status,
-      admin: {
-        ...current.admin,
-        owner: data.owner,
-        urgent: data.urgent === "true",
-        paid: data.paid === "true",
-        internalNote: data.internalNote,
-        result: data.result,
-      },
-    }));
-    navigate(`/admin/${order.id}`);
+    const result = document.querySelector("#adminFormResult");
+    try {
+      await patchAdminOrder(order.id, {
+        orderStatus: data.status,
+        assignedTo: data.owner,
+        isUrgent: data.urgent === "true",
+        internalNotes: data.internalNote,
+        resultNotes: data.result,
+      });
+      result.textContent = "订单修改已保存并同步到服务端。";
+      renderAdminDetail(order.id);
+    } catch (error) {
+      result.textContent = error instanceof Error ? error.message : "订单保存失败，请稍后重试。";
+    }
   });
 }
 

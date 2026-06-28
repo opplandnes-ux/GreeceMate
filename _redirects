@@ -1,9 +1,0 @@
-/buyer-service /index.html 200
-/services /index.html 200
-/services/* /index.html 200
-/orders /index.html 200
-/contact /index.html 200
-/order-success /index.html 200
-/order/* /index.html 200
-/admin /index.html 200
-/admin/* /index.html 200
