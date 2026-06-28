@@ -3,8 +3,11 @@ pages_build_output_dir = "."
 compatibility_date = "2026-06-28"
 compatibility_flags = ["nodejs_compat"]
 
-# Production D1 is bound as `DB` in the Cloudflare Pages dashboard.
-# Do not add a placeholder database ID here because it would break deployment.
+[[d1_databases]]
+binding = "DB"
+database_name = "greecemate-orders"
+database_id = "dfbb1e36-671f-4a4f-b038-bb3aed13048e"
+migrations_dir = "migrations"
 
 [vars]
 GOOGLE_APPS_SCRIPT_ENDPOINT = "https://script.google.com/macros/s/AKfycbw4hGSztT7i_g3Kr8cgOeGu7rECxEuJfTqMf9vhHNQe5LoS220qAkvOYGu3mnD8XtpY/exec"
