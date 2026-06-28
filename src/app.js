@@ -53,7 +53,28 @@ function normalizeLegacyRoute() {
   window.history.replaceState({}, "", legacyPath);
 }
 
+function mobileNavState(target) {
+  const { path } = route();
+  const active =
+    target === "/"
+      ? path === "/"
+      : target === "/services"
+        ? path === "/services" || path.startsWith("/services/") || path.startsWith("/order/")
+        : path === target;
+  return active ? 'class="active" aria-current="page"' : "";
+}
+
+function setMobileMenu(open) {
+  const toggle = document.querySelector(".mobile-menu-toggle");
+  document.body.classList.toggle("mobile-menu-open", open);
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", String(open));
+    toggle.setAttribute("aria-label", open ? "关闭导航菜单" : "打开导航菜单");
+  }
+}
+
 function shell(content) {
+  document.body.classList.remove("mobile-menu-open");
   app.innerHTML = `
     <div class="app-shell">
       <header class="topbar">
@@ -64,13 +85,26 @@ function shell(content) {
             <span class="brand-sub">${BRAND.slogan}</span>
           </span>
         </a>
-        <nav class="nav">
+        <nav class="nav" aria-label="主要导航">
           <a href="/buyer-service">Buyer Service / 买方代表</a>
           <a href="/services">服务</a>
           <a href="/orders">我的订单</a>
           <a href="/contact">联系客服</a>
         </nav>
+        <button class="mobile-menu-toggle" type="button" aria-controls="mobile-nav" aria-expanded="false" aria-label="打开导航菜单">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
       </header>
+      <button class="mobile-menu-backdrop" type="button" aria-label="关闭导航菜单"></button>
+      <nav class="mobile-menu" id="mobile-nav" aria-label="移动端导航">
+        <a href="/" ${mobileNavState("/")}>首页</a>
+        <a href="/buyer-service" ${mobileNavState("/buyer-service")}>买方代表</a>
+        <a href="/services" ${mobileNavState("/services")}>服务</a>
+        <a href="/orders" ${mobileNavState("/orders")}>我的订单</a>
+        <a href="/contact" ${mobileNavState("/contact")}>联系客服</a>
+      </nav>
       ${content}
       ${bottomBar()}
       ${footer()}
@@ -1107,6 +1141,23 @@ function render() {
 }
 
 app.addEventListener("click", (event) => {
+  const menuToggle = event.target.closest(".mobile-menu-toggle");
+  if (menuToggle) {
+    event.preventDefault();
+    setMobileMenu(menuToggle.getAttribute("aria-expanded") !== "true");
+    return;
+  }
+
+  if (event.target.closest(".mobile-menu-backdrop")) {
+    event.preventDefault();
+    setMobileMenu(false);
+    return;
+  }
+
+  if (event.target.closest(".mobile-menu a")) {
+    setMobileMenu(false);
+  }
+
   const link = event.target.closest(".js-scroll");
   if (link) {
     const targetId = link.dataset.scrollTarget;
@@ -1125,6 +1176,10 @@ app.addEventListener("click", (event) => {
   event.preventDefault();
   navigate(`${destination.pathname}${destination.search}${destination.hash}`);
   if (!destination.hash) window.scrollTo({ top: 0, behavior: "instant" });
+});
+
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") setMobileMenu(false);
 });
 
 window.addEventListener("popstate", render);
