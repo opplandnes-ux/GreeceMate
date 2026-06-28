@@ -3,11 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>希友帮｜GreeceMate｜中国人在希腊的本地服务助手</title>
-    <meta
-      name="description"
-      content="希友帮｜GreeceMate 为中国人在希腊提供办事陪同、房屋核验、身份信息提醒、出行安排和紧急协助等本地服务。"
-    />
+    <title>联系客服｜GreeceMate</title>
+    <meta name="description" content="联系 GreeceMate 微信或 WhatsApp 客服。" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -15,6 +12,11 @@
   </head>
   <body>
     <div id="app"></div>
+    <script>
+      if (window.location.pathname === "/contact/") {
+        window.history.replaceState({}, "", `/contact${window.location.search}${window.location.hash}`);
+      }
+    </script>
     <script src="/src/data.js?v=service-copy-20260627"></script>
     <script src="/src/orders.js?v=footer-rebuild-20260627"></script>
     <script src="/src/app.js?v=clean-routes-20260627"></script>

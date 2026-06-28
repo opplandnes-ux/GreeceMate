@@ -16,16 +16,48 @@ function icon(name) {
 }
 
 function route() {
-  const hash = window.location.hash || "#/";
-  const [path, query = ""] = hash.slice(1).split("?");
-  return { path, params: new URLSearchParams(query) };
+  let path = window.location.pathname.replace(/\/+$/, "") || "/";
+  if (path === "/index.html") path = "/";
+  if (path === "/buyer-service.html") path = "/buyer-service";
+  return { path, params: new URLSearchParams(window.location.search) };
+}
+
+function navigate(path, { replace = false } = {}) {
+  if (replace) {
+    window.history.replaceState({}, "", path);
+  } else {
+    window.history.pushState({}, "", path);
+  }
+  render();
+}
+
+function pageTitle(path) {
+  if (path === "/") return "希友帮｜GreeceMate｜中国人在希腊的本地服务助手";
+  if (path === "/buyer-service") return "GreeceMate Buyer Service｜希腊自选房源购房买方代表服务";
+  if (path === "/services") return "GreeceMate 服务列表｜希友帮";
+  if (path === "/orders") return "我的订单｜GreeceMate";
+  if (path === "/contact") return "联系客服｜GreeceMate";
+  if (path.startsWith("/services/")) {
+    const service = SERVICES.find((item) => item.id === path.split("/")[2]);
+    return service ? `${service.name}｜GreeceMate` : "页面未找到｜GreeceMate";
+  }
+  if (path.startsWith("/order/")) return "提交服务需求｜GreeceMate";
+  if (path === "/order-success") return "订单提交成功｜GreeceMate";
+  if (path.startsWith("/admin")) return "后台订单管理｜GreeceMate";
+  return "页面未找到｜GreeceMate";
+}
+
+function normalizeLegacyRoute() {
+  if (!window.location.hash.startsWith("#/")) return;
+  const legacyPath = window.location.hash.slice(1);
+  window.history.replaceState({}, "", legacyPath);
 }
 
 function shell(content) {
   app.innerHTML = `
     <div class="app-shell">
       <header class="topbar">
-        <a class="brand" href="#/">
+        <a class="brand" href="/">
           <span class="brand-mark">希</span>
           <span>
             <span class="brand-title">${BRAND.fullName}</span>
@@ -33,10 +65,10 @@ function shell(content) {
           </span>
         </a>
         <nav class="nav">
-          <a href="buyer-service.html">Buyer Service / 买方代表</a>
-          <a href="#/services">服务</a>
-          <a href="#/orders">我的订单</a>
-          <a class="js-scroll" href="#contact" data-scroll-target="contact">联系客服</a>
+          <a href="/buyer-service">Buyer Service / 买方代表</a>
+          <a href="/services">服务</a>
+          <a href="/orders">我的订单</a>
+          <a href="/contact">联系客服</a>
         </nav>
       </header>
       ${content}
@@ -109,9 +141,9 @@ function footer() {
 function bottomBar() {
   return `
     <div class="mobile-bottom-bar">
-      <a class="js-scroll" href="#contact" data-scroll-target="contact">咨询客服</a>
-      <a href="#/orders">我的订单</a>
-      <a class="strong" href="#/services">立即下单</a>
+      <a href="/contact">咨询客服</a>
+      <a href="/orders">我的订单</a>
+      <a class="strong" href="/services">立即下单</a>
     </div>
   `;
 }
@@ -145,8 +177,8 @@ function serviceCard(service) {
         <div class="meta-box"><div class="meta-label">加急</div><div class="meta-value">${supportUrgent(service)}</div></div>
       </div>
       <div class="card-actions">
-        <a class="ghost-btn" href="#/services/${service.id}">查看详情</a>
-        <a class="primary-btn" href="#/order/${service.id}">${serviceCta(service)}</a>
+        <a class="ghost-btn" href="/services/${service.id}">查看详情</a>
+        <a class="primary-btn" href="/order/${service.id}">${serviceCta(service)}</a>
       </div>
     </article>
   `;
@@ -163,8 +195,8 @@ function renderHome() {
             <h1><span class="hero-title-line">中国人在希腊的</span><span class="hero-title-line">本地服务助手</span></h1>
             <p>从银行开户、税号申请、粉卡续期，到接送机、房屋收房、维修核验和希腊旅行安排，一站式在线下单。</p>
             <div class="hero-actions">
-              <a class="primary-btn" href="#/services">立即选择服务</a>
-              <a class="ghost-btn js-scroll" href="#contact" data-scroll-target="contact">咨询客服</a>
+              <a class="primary-btn" href="/services">立即选择服务</a>
+              <a class="ghost-btn" href="/contact">咨询客服</a>
               <span class="hero-help">不确定该选哪个服务？先咨询客服</span>
             </div>
           </div>
@@ -189,7 +221,7 @@ function renderHome() {
               <p class="section-desc">五大入口覆盖中国客户在希腊最常见的办事、管房、出行和应急场景。</p>
             </div>
           </div>
-          <a class="buyer-feature-card" href="buyer-service.html">
+          <a class="buyer-feature-card" href="/buyer-service">
             <div>
               <span class="tag gold">GreeceMate Buyer Service</span>
               <h3>自选房源安心购｜GreeceMate Buyer Service</h3>
@@ -203,7 +235,7 @@ function renderHome() {
           <div class="grid categories">
             ${CATEGORIES.map(
               (category) => `
-              <a class="card category-card" href="#/services?category=${category.id}">
+              <a class="card category-card" href="/services?category=${category.id}">
                 <span class="icon-box">${icon(category.icon)}</span>
                 <h3>${category.title}</h3>
                 <p>${category.summary}</p>
@@ -222,7 +254,7 @@ function renderHome() {
               <h2>热门服务推荐</h2>
               <p class="section-desc">优先展示高频服务，方便客户快速进入下单流程。</p>
             </div>
-            <a class="plain-btn" href="#/services">查看全部</a>
+            <a class="plain-btn" href="/services">查看全部</a>
           </div>
           <div class="grid three">${popular.map(serviceCard).join("")}</div>
           ${contactBand("复杂问题请先提交需求，由客服人工确认", "政府、银行、居留相关事项以相关机构最终要求为准。")}
@@ -633,8 +665,8 @@ function renderServices() {
             <p>按场景浏览服务，每项服务都标明服务方式、适合人群和价格展示方式。</p>
           </div>
           <div class="tabs">
-            <a class="tab ${active === "all" ? "active" : ""}" href="#/services">全部服务</a>
-            ${CATEGORIES.map((category) => `<a class="tab ${active === category.id ? "active" : ""}" href="#/services?category=${category.id}">${category.title}</a>`).join("")}
+            <a class="tab ${active === "all" ? "active" : ""}" href="/services">全部服务</a>
+            ${CATEGORIES.map((category) => `<a class="tab ${active === category.id ? "active" : ""}" href="/services?category=${category.id}">${category.title}</a>`).join("")}
           </div>
         </div>
       </section>
@@ -688,8 +720,8 @@ function renderServiceDetail(serviceId) {
               <div class="meta-box"><div class="meta-label">加急</div><div class="meta-value">${supportUrgent(service)}</div></div>
             </div>
             <div class="card-actions" style="margin-top:16px">
-              <a class="primary-btn" href="#/order/${service.id}">${serviceCta(service)}</a>
-              <a class="ghost-btn" href="#/services?category=${service.categoryId}">返回列表</a>
+              <a class="primary-btn" href="/order/${service.id}">${serviceCta(service)}</a>
+              <a class="ghost-btn" href="/services?category=${service.categoryId}">返回列表</a>
             </div>
           </aside>
         </div>
@@ -734,7 +766,7 @@ function renderOrderForm(serviceId) {
             <div class="notice" style="margin-top:16px">提交代表你理解：${COMPLIANCE_TEXT}</div>
             <div class="card-actions" style="margin-top:18px">
               <button class="primary-btn" type="submit">提交订单</button>
-              <a class="ghost-btn" href="#/services/${service.id}">返回详情</a>
+              <a class="ghost-btn" href="/services/${service.id}">返回详情</a>
             </div>
             <p id="orderFormResult" class="form-result" aria-live="polite"></p>
           </form>
@@ -765,7 +797,7 @@ function renderOrderForm(serviceId) {
     const submitted = await submitServiceOrder(payload);
     if (submitted) {
       const order = createOrder(formValues);
-      window.location.hash = `#/order-success?order=${order.id}`;
+      navigate(`/order-success?order=${order.id}`);
       return;
     }
 
@@ -793,7 +825,7 @@ function buildServiceOrderPayload(formValues, service, category) {
     preferredTime: formValues.preferredTime || "",
     urgent: formValues.urgent || "否",
     notes,
-    source: window.location.hash || window.location.pathname,
+    source: `${window.location.pathname}${window.location.search}`,
     sourcePage: window.location.href,
     status: "新提交",
     leadStatus: "新提交",
@@ -891,8 +923,8 @@ function renderOrderSuccess() {
                 <button class="ghost-btn" type="button">银行转账说明</button>
               </div>
               <div class="card-actions" style="margin-top:14px">
-                <a class="primary-btn" href="#/orders">查看订单状态</a>
-                <a class="ghost-btn" href="#/services">继续选择服务</a>
+                <a class="primary-btn" href="/orders">查看订单状态</a>
+                <a class="ghost-btn" href="/services">继续选择服务</a>
               </div>
             </section>
           </div>
@@ -912,7 +944,7 @@ function renderOrders() {
       </div>
       <section class="section" style="padding-top:0">
         <div class="container">
-          ${orders.length ? orders.map(userOrderCard).join("") : `<div class="card empty">还没有订单。<a href="#/services">去选择服务</a></div>`}
+          ${orders.length ? orders.map(userOrderCard).join("") : `<div class="card empty">还没有订单。<a href="/services">去选择服务</a></div>`}
         </div>
       </section>
     </main>
@@ -956,12 +988,12 @@ function renderAdmin() {
           <aside class="admin-panel">
             <h2>筛选</h2>
             <div class="filter-list">
-              ${["全部", "新订单", "待处理", "执行中", "已完成", "已取消"].map((item) => `<a class="ghost-btn ${filter === item ? "active" : ""}" href="#/admin?filter=${item}">${item}</a>`).join("")}
+              ${["全部", "新订单", "待处理", "执行中", "已完成", "已取消"].map((item) => `<a class="ghost-btn ${filter === item ? "active" : ""}" href="/admin?filter=${item}">${item}</a>`).join("")}
             </div>
             <div class="notice" style="margin-top:16px">管理员登录预留：后续可在此接入手机号、邮箱验证码或企业微信登录。</div>
           </aside>
           <section class="admin-panel">
-            <div class="section-head"><h2>订单列表</h2><a class="primary-btn" href="#/services">创建测试订单</a></div>
+            <div class="section-head"><h2>订单列表</h2><a class="primary-btn" href="/services">创建测试订单</a></div>
             ${
               filtered.length
                 ? `<div class="table-wrap"><table class="orders-table"><thead><tr><th>订单</th><th>客户</th><th>状态</th><th>负责人</th><th>操作</th></tr></thead><tbody>${filtered
@@ -971,7 +1003,7 @@ function renderAdmin() {
                         <td>${order.customer.name}<br />${order.customer.wechat || order.customer.email}</td>
                         <td><span class="status-pill">${order.status}</span>${order.admin.urgent ? '<br /><span class="tag gold">加急</span>' : ""}${order.admin.paid ? '<br /><span class="tag green">已付款</span>' : ""}</td>
                         <td>${order.admin.owner || "未分派"}</td>
-                        <td><a class="ghost-btn" href="#/admin/${order.id}">查看详情</a></td>
+                        <td><a class="ghost-btn" href="/admin/${order.id}">查看详情</a></td>
                       </tr>`,
                     )
                     .join("")}</tbody></table></div>`
@@ -1026,7 +1058,7 @@ function renderAdminDetail(orderId) {
             <p><strong>上传资料：</strong>${order.request.uploadNeeded ? "需要" : "不需要"}</p>
             <p><strong>需求描述：</strong>${order.request.description}</p>
             <p><strong>备注：</strong>${order.request.note || "无"}</p>
-            <div class="card-actions"><a class="ghost-btn" href="#/admin">返回后台</a><a class="ghost-btn" href="#/orders">用户状态页</a></div>
+            <div class="card-actions"><a class="ghost-btn" href="/admin">返回后台</a><a class="ghost-btn" href="/orders">用户状态页</a></div>
           </aside>
         </div>
       </section>
@@ -1046,16 +1078,17 @@ function renderAdminDetail(orderId) {
         result: data.result,
       },
     }));
-    window.location.hash = `#/admin/${order.id}`;
+    navigate(`/admin/${order.id}`);
   });
 }
 
 function renderNotFound() {
-  shell(`<main><section class="section"><div class="container"><div class="card empty">页面未找到。<a href="#/">返回首页</a></div></div></section></main>`);
+  shell(`<main><section class="section"><div class="container"><div class="card empty">页面未找到。<a href="/">返回首页</a></div></div></section></main>`);
 }
 
 function render() {
   const { path } = route();
+  document.title = pageTitle(path);
   if (path === "/") return renderHome();
   if (path === "/buyer-service") return renderBuyerService();
   if (path === "/services") return renderServices();
@@ -1063,6 +1096,11 @@ function render() {
   if (path.startsWith("/order/")) return renderOrderForm(path.split("/")[2]);
   if (path === "/order-success") return renderOrderSuccess();
   if (path === "/orders") return renderOrders();
+  if (path === "/contact") {
+    renderHome();
+    window.requestAnimationFrame(() => document.getElementById("contact")?.scrollIntoView({ block: "start" }));
+    return;
+  }
   if (path === "/admin") return renderAdmin();
   if (path.startsWith("/admin/")) return renderAdminDetail(path.split("/")[2]);
   return renderNotFound();
@@ -1070,13 +1108,25 @@ function render() {
 
 app.addEventListener("click", (event) => {
   const link = event.target.closest(".js-scroll");
-  if (!link) return;
-  const targetId = link.dataset.scrollTarget;
-  const target = targetId ? document.getElementById(targetId) : null;
-  if (!target) return;
+  if (link) {
+    const targetId = link.dataset.scrollTarget;
+    const target = targetId ? document.getElementById(targetId) : null;
+    if (target) {
+      event.preventDefault();
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+  }
+
+  const routeLink = event.target.closest('a[href^="/"]');
+  if (!routeLink || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  const destination = new URL(routeLink.href, window.location.origin);
+  if (destination.origin !== window.location.origin) return;
   event.preventDefault();
-  target.scrollIntoView({ behavior: "smooth", block: "start" });
+  navigate(`${destination.pathname}${destination.search}${destination.hash}`);
+  if (!destination.hash) window.scrollTo({ top: 0, behavior: "instant" });
 });
 
-window.addEventListener("hashchange", render);
+window.addEventListener("popstate", render);
+normalizeLegacyRoute();
 render();

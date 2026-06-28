@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>GreeceMate Buyer Service｜希腊自选房源购房与黄金签证买方代表服务</title>
+    <title>GreeceMate Buyer Service｜希腊自选房源购房买方代表服务</title>
     <meta
       name="description"
       content="GreeceMate Buyer Service 为客户提供希腊自选房源购房、黄金签证、尽调协调、交易护航和资产落地服务。"
@@ -11,17 +11,12 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./src/styles.css?v=buyer-value-20260627" />
   </head>
   <body>
-    <div id="app"></div>
+    <p>正在进入 GreeceMate Buyer Service...</p>
     <script>
-      if (!window.location.hash) {
-        window.location.hash = "#/buyer-service";
-      }
+      const legacyPath = window.location.hash.startsWith("#/") ? window.location.hash.slice(1) : "/buyer-service";
+      window.location.replace(legacyPath);
     </script>
-    <script src="./src/data.js?v=service-copy-20260627"></script>
-    <script src="./src/orders.js?v=buyer-value-20260627"></script>
-    <script src="./src/app.js?v=buyer-value-20260627"></script>
   </body>
 </html>
