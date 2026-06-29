@@ -77,6 +77,23 @@ async function fetchServerOrder(order) {
   return cacheServerOrder(result.order, order.orderViewToken);
 }
 
+async function submitPaymentConfirmationToServer(order, payload) {
+  if (!order?.serverBacked || !order.orderViewToken) {
+    throw new Error("订单尚未同步到服务端，暂时无法提交付款信息。");
+  }
+  const response = await fetch(`/api/orders/${encodeURIComponent(order.id)}/payment-confirmation`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${order.orderViewToken}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error(await responseError(response));
+  const result = await response.json();
+  return cacheServerOrder(result.order, order.orderViewToken);
+}
+
 async function syncUserOrders() {
   const cached = getOrders();
   const serverOrders = cached.filter((order) => order.serverBacked && order.orderViewToken);

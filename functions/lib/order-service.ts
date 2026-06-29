@@ -2,7 +2,7 @@ import { ApiError } from "./errors";
 import type { Env, OrderRow } from "./db";
 import { toAdminOrder, toPublicOrder } from "./db";
 import { createOrderId, createOrderNumber, deriveOrderViewToken, hashToken } from "./token";
-import type { AdminUpdateInput, ValidatedOrderInput } from "./validation";
+import type { AdminUpdateInput, PaymentConfirmationInput, ValidatedOrderInput } from "./validation";
 
 const DEFAULT_APPS_SCRIPT_ENDPOINT =
   "https://script.google.com/macros/s/AKfycbw4hGSztT7i_g3Kr8cgOeGu7rECxEuJfTqMf9vhHNQe5LoS220qAkvOYGu3mnD8XtpY/exec";
@@ -131,13 +131,14 @@ export async function createOrder(
       await env.DB.prepare(
         `INSERT INTO orders (
           id, order_number, idempotency_key, order_type, service_id, service_name,
-          service_category, service_price_text, customer_name, contact, wechat, whatsapp,
+          service_category, service_price_text, payment_mode, deposit_cny, amount_eur_reference,
+          customer_name, contact, wechat, whatsapp,
           email, country, city, preferred_time, is_urgent, chinese_companion, upload_needed,
           description, notes, property_link, property_address, budget, golden_visa_plan,
           family_members, current_stage, order_status, payment_status, source,
           order_view_token_hash, notification_status, created_at, updated_at
         ) VALUES (
-          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
           '新订单', 'unpaid', ?, ?, 'pending', ?, ?
         )`,
       )
@@ -150,6 +151,9 @@ export async function createOrder(
           input.serviceName,
           input.serviceCategory,
           input.servicePriceText,
+          input.paymentMode,
+          input.depositCNY,
+          input.amountEURReference,
           input.customerName,
           input.contact,
           input.wechat,
@@ -207,6 +211,45 @@ export async function createOrder(
   };
 }
 
+export async function submitPaymentConfirmation(
+  env: Env,
+  orderId: string,
+  input: PaymentConfirmationInput,
+) {
+  const current = await getOrderRow(env, orderId);
+  if (current.payment_mode !== "wechat_qr_deposit") {
+    throw new ApiError(400, "PAYMENT_NOT_AVAILABLE", "该服务需由客服确认付款方式。" );
+  }
+  if (current.payment_status === "paid_external") {
+    throw new ApiError(409, "PAYMENT_ALREADY_CONFIRMED", "该订单付款已由客服确认。" );
+  }
+  if ((current.email || "").toLowerCase() !== input.email.toLowerCase()) {
+    throw new ApiError(400, "PAYMENT_EMAIL_MISMATCH", "邮箱与订单信息不一致。" );
+  }
+
+  const now = new Date().toISOString();
+  await env.DB.prepare(
+    `UPDATE orders SET
+      payment_status = 'pending_manual_check', payment_channel = ?, payment_amount_cny = ?,
+      payment_payer_name = ?, payment_remark = ?, payment_reported_at = ?,
+      payment_submitted_at = ?, order_status = '待核款', updated_at = ?, version = version + 1
+     WHERE id = ?`,
+  )
+    .bind(
+      input.paymentChannel,
+      input.paymentAmountCNY,
+      input.paymentPayerName,
+      input.paymentRemark,
+      input.paymentReportedAt,
+      now,
+      now,
+      orderId,
+    )
+    .run();
+
+  return toPublicOrder(await getOrderRow(env, orderId));
+}
+
 export async function listAdminOrders(env: Env, search = "", status = "") {
   const clauses: string[] = [];
   const values: string[] = [];
@@ -227,14 +270,30 @@ export async function listAdminOrders(env: Env, search = "", status = "") {
 
 export async function updateAdminOrder(env: Env, orderId: string, update: AdminUpdateInput) {
   const current = await getOrderRow(env, orderId);
-  const nextStatus = update.orderStatus ?? current.order_status;
+  const paymentStatus = update.paymentStatus ?? current.payment_status;
+  const paymentDrivenStatus =
+    paymentStatus === "pending_manual_check"
+      ? "待核款"
+      : paymentStatus === "paid_external"
+        ? "已付款"
+        : paymentStatus === "cancelled"
+          ? "已取消"
+          : current.order_status;
+  const nextStatus = update.orderStatus ?? paymentDrivenStatus;
   const completedAt = nextStatus === "已完成" ? current.completed_at || new Date().toISOString() : null;
   const updatedAt = new Date().toISOString();
+  const checkedAt =
+    paymentStatus === "paid_external" || paymentStatus === "refunded_external"
+      ? update.paymentCheckedAt || current.payment_checked_at || updatedAt
+      : update.paymentCheckedAt ?? current.payment_checked_at;
+  const paidAt = paymentStatus === "paid_external" ? current.paid_at || updatedAt : current.paid_at;
 
   await env.DB.prepare(
     `UPDATE orders SET
       order_status = ?, assigned_to = ?, internal_notes = ?, result_notes = ?,
-      is_urgent = ?, completed_at = ?, updated_at = ?, version = version + 1
+      is_urgent = ?, completed_at = ?, payment_status = ?, payment_received_amount_cny = ?,
+      payment_checked_at = ?, payment_checked_by = ?, payment_check_notes = ?, paid_at = ?,
+      updated_at = ?, version = version + 1
      WHERE id = ?`,
   )
     .bind(
@@ -244,6 +303,14 @@ export async function updateAdminOrder(env: Env, orderId: string, update: AdminU
       update.resultNotes ?? current.result_notes,
       update.isUrgent === undefined ? current.is_urgent : update.isUrgent ? 1 : 0,
       completedAt,
+      paymentStatus,
+      update.paymentReceivedAmountCNY === undefined
+        ? current.payment_received_amount_cny
+        : update.paymentReceivedAmountCNY,
+      checkedAt,
+      update.paymentCheckedBy ?? current.payment_checked_by,
+      update.paymentCheckNotes ?? current.payment_check_notes,
+      paidAt,
       updatedAt,
       orderId,
     )

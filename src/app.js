@@ -3,6 +3,10 @@ const COMPLIANCE_TEXT =
   "所有政府、银行、居留、物业、维修、票务相关服务，仅提供协助、预约、陪同、资料整理、提醒、核验和代缴协助，不承诺银行、政府、移民局、物业公司、供应商或第三方机构的最终结果。";
 const BUYER_SERVICE_GOOGLE_SHEET_ENDPOINT = "https://script.google.com/macros/s/AKfycbw4hGSztT7i_g3Kr8cgOeGu7rECxEuJfTqMf9vhHNQe5LoS220qAkvOYGu3mnD8XtpY/exec";
 const BUYER_SERVICE_FALLBACK_EMAIL = "sunmixbn@gmail.com";
+const WECHAT_PAYMENT_QR_PATH = "/assets/images/payment/wechat-pay-qr.jpg";
+const WECHAT_PAYMENT_QR_CONFIGURED = true;
+const PAYMENT_NOTICE =
+  "GreeceMate 官网主要用于服务说明、需求提交和客服确认。部分标准服务可通过微信扫码支付预约金。付款后请备注订单号和邮箱，客服核对到账后更新订单状态。";
 
 function icon(name) {
   const icons = {
@@ -187,7 +191,51 @@ function supportUrgent(service) {
 }
 
 function serviceCta(service) {
+  if (service.paymentMode === "external_platform") return "去平台下单";
+  if (service.paymentMode === "manual_confirm" || service.paymentMode === "no_payment") return "提交需求";
   return service.cta || "立即下单";
+}
+
+function paymentStatusLabel(status) {
+  return {
+    unpaid: "未支付",
+    pending_manual_check: "待核款",
+    paid_external: "已通过微信支付付款",
+    refunded_external: "已退款",
+    cancelled: "已取消",
+  }[status] || "未支付";
+}
+
+function paymentChannelLabel(channel) {
+  return channel === "wechat_qr" ? "微信支付" : channel ? channel : "未提交";
+}
+
+function paymentStatusOptions(current) {
+  return [
+    ["unpaid", "未支付"],
+    ["pending_manual_check", "待核款"],
+    ["paid_external", "已通过微信支付付款"],
+    ["refunded_external", "已退款"],
+    ["cancelled", "已取消"],
+  ]
+    .map(([value, label]) => `<option value="${value}" ${value === current ? "selected" : ""}>${label}</option>`)
+    .join("");
+}
+
+function paymentAmount(value) {
+  return value === null || value === undefined || value === "" ? "待确认" : `¥${Number(value).toFixed(2).replace(/\.00$/, "")}`;
+}
+
+function localDateTimeValue(date = new Date()) {
+  const offset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
+
+function paymentQrMarkup(className = "") {
+  if (!WECHAT_PAYMENT_QR_CONFIGURED) {
+    return `<div class="payment-qr-placeholder ${className}"><strong>企业微信收款码待配置</strong><span>请先联系客服确认付款方式</span></div>`;
+  }
+  return `<div class="payment-qr-wrap ${className}"><img src="${WECHAT_PAYMENT_QR_PATH}" alt="GreeceMate 企业微信预约金收款码" /></div>`;
 }
 
 function compactText(text, maxLength = 24) {
@@ -817,12 +865,15 @@ function renderOrderForm(serviceId) {
             </div>
             <p id="orderFormResult" class="form-result" aria-live="polite"></p>
           </form>
-          <aside class="card detail-block side-box">
-            <h2>${service.name}</h2>
-            <p>${service.short}</p>
-            <div class="price">${service.price}</div>
-            <p>${service.deposit}</p>
-            <div class="notice">${COMPLIANCE_TEXT}</div>
+          <aside class="order-side-stack side-box">
+            <section class="card detail-block">
+              <h2>${service.name}</h2>
+              <p>${service.short}</p>
+              <div class="price">${service.price}</div>
+              <p>${service.deposit}</p>
+              <div class="notice">${COMPLIANCE_TEXT}</div>
+            </section>
+            ${renderPreSubmitPaymentCard(service)}
           </aside>
         </div>
       </section>
@@ -855,6 +906,34 @@ function renderOrderForm(serviceId) {
   });
 }
 
+function renderPreSubmitPaymentCard(service) {
+  if (service.paymentMode !== "wechat_qr_deposit") {
+    return `
+      <section class="card detail-block payment-card manual-payment-card">
+        <span class="tag gold">人工确认</span>
+        <h2>客服确认后付款</h2>
+        <p>本服务需客服确认服务范围和预约金金额。客服确认后将提供付款方式。</p>
+        <a class="ghost-btn" href="/contact">联系客服</a>
+      </section>
+    `;
+  }
+  return `
+    <section class="card detail-block payment-card">
+      <span class="tag gold">微信预约金</span>
+      <h2>支付预约金</h2>
+      <div class="payment-due">应付预约金：<strong>${paymentAmount(service.depositCNY)}</strong></div>
+      <p><strong>订单号：</strong>提交订单后生成</p>
+      ${paymentQrMarkup("payment-qr-small")}
+      <p>请使用微信扫码支付预约金。付款备注请填写订单号 + 邮箱，方便客服核对。</p>
+      <p class="payment-example">示例：GM-20260629-8K4P2M + abc@email.com</p>
+      <div class="card-actions">
+        <button class="primary-btn" type="button" disabled>提交订单后付款</button>
+        <a class="ghost-btn" href="/contact">联系客服</a>
+      </div>
+    </section>
+  `;
+}
+
 function buildServiceOrderPayload(formValues, service, category) {
   const submittedAt = new Date().toISOString();
   return {
@@ -866,6 +945,9 @@ function buildServiceOrderPayload(formValues, service, category) {
     serviceCategory: category ? category.title : "",
     serviceName: service.name,
     servicePrice: service.price,
+    paymentMode: service.paymentMode,
+    depositCNY: service.depositCNY,
+    amountEURReference: service.amountEURReference,
     customerName: formValues.name || "",
     contact: [formValues.wechat, formValues.whatsapp].filter(Boolean).join(" / "),
     email: formValues.email || "",
@@ -926,14 +1008,18 @@ function field(label, name, type, required, placeholder = "") {
 function renderOrderSuccess() {
   const order = getOrder(route().params.get("order"));
   if (!order) return renderNotFound();
+  const canPay = order.paymentMode === "wechat_qr_deposit";
+  const payment = order.payment || {};
+  const pendingCheck = order.paymentStatus === "pending_manual_check";
   shell(`
     <main>
       <section class="section">
         <div class="container">
           <div class="card success-box">
             <div class="success-mark">✓</div>
-            <h1>订单提交成功</h1>
-            <p>订单号：${escapeHtml(order.orderNumber || order.id)}</p>
+            <h1>需求已提交</h1>
+            <p>订单号：<strong>${escapeHtml(order.orderNumber || order.id)}</strong></p>
+            <p>当前状态：${pendingCheck ? "待核款" : canPay ? "待支付预约金" : escapeHtml(order.status)}</p>
             <p>客服会根据你提交的信息确认服务时间、资料要求和费用说明。</p>
           </div>
           <div class="grid two" style="margin-top:16px">
@@ -945,24 +1031,123 @@ function renderOrderSuccess() {
               <p><strong>服务说明：</strong>本订单为服务需求提交，费用和时间需经客服确认。</p>
               <p><strong>免责声明：</strong>${COMPLIANCE_TEXT}</p>
             </section>
-            <section class="card detail-block">
-              <h2>支付占位</h2>
-              <p>第一阶段不接入真实支付，以下按钮仅用于演示。</p>
-              <div class="card-actions">
-                <button class="primary-btn" type="button">微信支付占位</button>
-                <button class="ghost-btn" type="button">支付宝支付占位</button>
-                <button class="ghost-btn" type="button">银行转账说明</button>
-              </div>
-              <div class="card-actions" style="margin-top:14px">
-                <a class="primary-btn" href="/orders">查看订单状态</a>
-                <a class="ghost-btn" href="/services">继续选择服务</a>
-              </div>
-            </section>
+            ${canPay ? renderOrderPaymentModule(order) : renderManualPaymentModule(order)}
           </div>
         </div>
       </section>
     </main>
   `);
+
+  const copyButton = document.querySelector("#copyOrderNumber");
+  if (copyButton) {
+    copyButton.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(order.orderNumber || order.id);
+        copyButton.textContent = "已复制订单号";
+      } catch {
+        copyButton.textContent = `订单号：${order.orderNumber || order.id}`;
+      }
+    });
+  }
+
+  const paymentForm = document.querySelector("#paymentConfirmationForm");
+  if (paymentForm) {
+    paymentForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const result = document.querySelector("#paymentConfirmationResult");
+      const button = form.querySelector('button[type="submit"]');
+      const data = Object.fromEntries(new FormData(form).entries());
+      button.disabled = true;
+      button.textContent = "正在提交...";
+      result.textContent = "";
+      try {
+        await submitPaymentConfirmationToServer(order, {
+          paymentChannel: "wechat_qr",
+          paymentAmountCNY: data.paymentAmountCNY,
+          paymentPayerName: data.paymentPayerName,
+          paymentReportedAt: data.paymentReportedAt,
+          paymentRemark: data.paymentRemark,
+          email: data.email,
+        });
+        result.textContent = "付款信息已提交。客服核对到账后，会更新订单状态。";
+        setTimeout(() => renderOrderSuccess(), 700);
+      } catch (error) {
+        result.textContent = error instanceof Error ? error.message : "付款信息提交失败，请稍后重试。";
+        button.disabled = false;
+        button.textContent = "提交付款信息";
+      }
+    });
+  }
+}
+
+function renderOrderPaymentModule(order) {
+  const payment = order.payment || {};
+  const alreadySubmitted = order.paymentStatus === "pending_manual_check";
+  const confirmed = order.paymentStatus === "paid_external";
+  return `
+    <section class="card detail-block payment-card order-payment-card">
+      <span class="tag ${confirmed ? "green" : "gold"}">${paymentStatusLabel(order.paymentStatus)}</span>
+      <h2>微信预约金付款</h2>
+      <div class="payment-due">应付预约金：<strong>${paymentAmount(order.depositCNY)}</strong></div>
+      <p><strong>订单号：</strong>${escapeHtml(order.orderNumber || order.id)}</p>
+      ${paymentQrMarkup()}
+      <p>请使用微信扫码支付。付款备注请填写订单号 + 邮箱。</p>
+      <p class="payment-example">${escapeHtml(order.orderNumber || order.id)} + ${escapeHtml(order.customer.email || "你的邮箱")}</p>
+      <p class="mobile-payment-tip">手机端可长按二维码识别付款。付款前请先复制订单号。</p>
+      <div class="card-actions">
+        <button class="ghost-btn" id="copyOrderNumber" type="button">复制订单号</button>
+        <a class="ghost-btn" href="/contact">联系客服</a>
+        <a class="ghost-btn" href="/orders">返回我的订单</a>
+      </div>
+      ${
+        confirmed
+          ? '<div class="notice payment-state-notice">付款已确认，客服将继续处理服务。</div>'
+          : alreadySubmitted
+            ? '<div class="notice payment-state-notice">付款信息已提交，客服正在核对到账。</div>'
+            : renderPaymentConfirmationForm(order)
+      }
+      <div class="payment-policy">
+        <p>${PAYMENT_NOTICE}</p>
+        <p>网站服务价格以欧元为基准，人民币支付金额以页面显示或客服确认金额为准。最终服务费用根据服务范围、资料复杂度、第三方费用和实际执行情况确认。</p>
+        <p>当前官网微信二维码付款为人工核款方式。支付状态以客服核对到账后的后台更新为准。</p>
+      </div>
+    </section>
+  `;
+}
+
+function renderPaymentConfirmationForm(order) {
+  return `
+    <details class="payment-confirmation">
+      <summary class="primary-btn">我已付款</summary>
+      <form id="paymentConfirmationForm" class="form-grid">
+        <div class="field"><label>付款渠道</label><input value="微信支付" disabled /></div>
+        <div class="field"><label for="paymentAmountCNY">付款金额（人民币）</label><input id="paymentAmountCNY" name="paymentAmountCNY" type="number" min="0.01" step="0.01" value="${escapeHtml(order.depositCNY || "")}" required /></div>
+        <div class="field"><label for="paymentPayerName">付款人姓名</label><input id="paymentPayerName" name="paymentPayerName" required /></div>
+        <div class="field"><label for="paymentReportedAt">付款时间</label><input id="paymentReportedAt" name="paymentReportedAt" type="datetime-local" value="${localDateTimeValue()}" required /></div>
+        <div class="field full"><label for="paymentRemark">付款备注</label><input id="paymentRemark" name="paymentRemark" placeholder="请填写付款时使用的备注" /></div>
+        <div class="field"><label for="paymentEmail">邮箱</label><input id="paymentEmail" name="email" type="email" value="${escapeHtml(order.customer.email || "")}" required /></div>
+        <div class="field"><label>订单号</label><input value="${escapeHtml(order.orderNumber || order.id)}" disabled /></div>
+        <div class="field full"><button class="primary-btn" type="submit">提交付款信息</button></div>
+      </form>
+      <p id="paymentConfirmationResult" class="form-result" aria-live="polite"></p>
+    </details>
+  `;
+}
+
+function renderManualPaymentModule(order) {
+  return `
+    <section class="card detail-block payment-card manual-payment-card">
+      <span class="tag gold">人工确认</span>
+      <h2>客服确认后付款</h2>
+      <p>本服务需客服确认服务范围和预约金金额。客服确认后将提供付款方式。</p>
+      <p>网站服务价格以欧元为基准，人民币支付金额以页面显示或客服确认金额为准。</p>
+      <div class="card-actions">
+        <a class="primary-btn" href="/contact">联系客服</a>
+        <a class="ghost-btn" href="/orders">返回我的订单</a>
+      </div>
+    </section>
+  `;
 }
 
 function renderOrders() {
@@ -994,6 +1179,15 @@ function renderUserOrdersList(orders, syncFailed = false) {
 
 function userOrderCard(order) {
   const currentIndex = ORDER_STATUSES.indexOf(order.status);
+  const payment = order.payment || {};
+  const paymentMessage =
+    order.paymentStatus === "pending_manual_check"
+      ? "付款信息已提交，客服正在核对到账。"
+      : order.paymentStatus === "paid_external"
+        ? "付款已确认，客服将继续处理服务。"
+        : order.paymentMode === "manual_confirm"
+          ? "客服确认服务范围和金额后，将提供付款方式。"
+          : "订单尚未提交付款信息。";
   return `
     <article class="card detail-block" style="margin-bottom:16px">
       <div class="section-head">
@@ -1002,6 +1196,13 @@ function userOrderCard(order) {
           <h2>${escapeHtml(order.serviceName)}</h2>
           <p>订单号：${escapeHtml(order.orderNumber || order.id)}｜提交时间：${new Date(order.createdAt).toLocaleString("zh-CN")}</p>
         </div>
+      </div>
+      <div class="order-payment-summary">
+        <div><span>支付状态</span><strong>${paymentStatusLabel(order.paymentStatus)}</strong></div>
+        <div><span>付款渠道</span><strong>${paymentChannelLabel(payment.channel)}</strong></div>
+        <div><span>付款金额</span><strong>${paymentAmount(payment.amountCNY ?? order.depositCNY)}</strong></div>
+        <p>${paymentMessage}</p>
+        ${order.paymentMode === "wechat_qr_deposit" && order.paymentStatus === "unpaid" ? `<a class="primary-btn" href="/order-success?order=${encodeURIComponent(order.id)}">查看付款说明</a>` : ""}
       </div>
       <div class="timeline">
         ${ORDER_STATUSES.map((status, index) => {
@@ -1105,7 +1306,7 @@ function renderAdminOrdersList(orders, warning = "") {
               (order) => `<tr>
                 <td><strong>${escapeHtml(order.serviceName)}</strong><br />${escapeHtml(order.orderNumber || order.id)}</td>
                 <td>${escapeHtml(order.customer.name)}<br />${escapeHtml(order.customer.wechat || order.customer.contact || order.customer.email)}</td>
-                <td><span class="status-pill">${escapeHtml(order.status)}</span>${order.admin?.urgent ? '<br /><span class="tag gold">加急</span>' : ""}${order.paymentStatus === "paid" ? '<br /><span class="tag green">已付款</span>' : ""}${order.notificationStatus === "failed" ? '<br /><span class="tag gold">通知失败</span>' : ""}</td>
+                <td><span class="status-pill">${escapeHtml(order.status)}</span>${order.admin?.urgent ? '<br /><span class="tag gold">加急</span>' : ""}<br /><span class="tag ${order.paymentStatus === "paid_external" ? "green" : order.paymentStatus === "pending_manual_check" ? "gold" : ""}">${paymentStatusLabel(order.paymentStatus)}</span>${order.notificationStatus === "failed" ? '<br /><span class="tag gold">通知失败</span>' : ""}</td>
                 <td>${escapeHtml(order.admin?.owner || "未分派")}</td>
                 <td><a class="ghost-btn" href="/admin/${order.id}">查看详情</a></td>
               </tr>`,
@@ -1118,7 +1319,7 @@ function renderAdminOrdersList(orders, warning = "") {
 
 function filterOrders(orders, filter) {
   if (filter === "全部") return orders;
-  if (filter === "待处理") return orders.filter((order) => ["新订单", "待确认", "待补资料", "已报价"].includes(order.status));
+  if (filter === "待处理") return orders.filter((order) => ["新订单", "待核款", "待确认", "待补资料", "已报价"].includes(order.status));
   if (filter === "执行中") return orders.filter((order) => ["已付款", "已派单", "执行中", "待客户确认", "售后处理中"].includes(order.status));
   return orders.filter((order) => order.status === filter);
 }
@@ -1148,6 +1349,8 @@ function renderAdminDetail(orderId) {
 function renderAdminDetailForm(order, warning = "") {
   const target = document.querySelector("#adminDetailContent");
   if (!target) return;
+  const payment = order.payment || {};
+  const adminPayment = order.admin?.payment || {};
   target.className = "container detail-layout";
   target.innerHTML = `
     <section class="form-panel">
@@ -1158,7 +1361,17 @@ function renderAdminDetailForm(order, warning = "") {
         <div class="field"><label for="status">订单状态</label><select id="status" name="status">${ORDER_STATUSES.map((status) => `<option ${status === order.status ? "selected" : ""}>${status}</option>`).join("")}</select></div>
         <div class="field"><label for="owner">分派负责人</label><select id="owner" name="owner"><option value="">未分派</option>${ADMIN_USERS.map((user) => `<option ${user === order.admin?.owner ? "selected" : ""}>${user}</option>`).join("")}</select></div>
         <div class="field"><label for="urgent">标记是否加急</label><select id="urgent" name="urgent"><option value="false" ${!order.admin?.urgent ? "selected" : ""}>否</option><option value="true" ${order.admin?.urgent ? "selected" : ""}>是</option></select></div>
-        <div class="field"><label>支付状态</label><input value="${order.paymentStatus === "paid" ? "已支付" : "未支付"}" disabled /></div>
+        <div class="field"><label for="paymentStatus">支付状态</label><select id="paymentStatus" name="paymentStatus">${paymentStatusOptions(order.paymentStatus)}</select></div>
+        <div class="field"><label>付款渠道</label><input value="${paymentChannelLabel(payment.channel)}" disabled /></div>
+        <div class="field"><label>应收预约金</label><input value="${paymentAmount(order.depositCNY)}" disabled /></div>
+        <div class="field"><label>客户填写付款金额</label><input value="${paymentAmount(payment.amountCNY)}" disabled /></div>
+        <div class="field"><label>付款人姓名</label><input value="${escapeHtml(payment.payerName || "未提交")}" disabled /></div>
+        <div class="field"><label>客户填写付款时间</label><input value="${escapeHtml(payment.reportedAt || "未提交")}" disabled /></div>
+        <div class="field full"><label>付款备注</label><input value="${escapeHtml(payment.remark || "未提交")}" disabled /></div>
+        <div class="field"><label for="paymentReceivedAmountCNY">实际到账金额（人民币）</label><input id="paymentReceivedAmountCNY" name="paymentReceivedAmountCNY" type="number" min="0" step="0.01" value="${escapeHtml(adminPayment.receivedAmountCNY ?? "")}" /></div>
+        <div class="field"><label for="paymentCheckedAt">核款 / 到账时间</label><input id="paymentCheckedAt" name="paymentCheckedAt" type="datetime-local" value="${escapeHtml(adminPayment.checkedAt ? localDateTimeValue(new Date(adminPayment.checkedAt)) : "")}" /></div>
+        <div class="field"><label for="paymentCheckedBy">核款人</label><input id="paymentCheckedBy" name="paymentCheckedBy" value="${escapeHtml(adminPayment.checkedBy || order.admin?.owner || "")}" /></div>
+        <div class="field full"><label for="paymentCheckNotes">核款备注</label><textarea id="paymentCheckNotes" name="paymentCheckNotes">${escapeHtml(adminPayment.checkNotes || "")}</textarea></div>
         <div class="field full"><label for="internalNote">内部备注</label><textarea id="internalNote" name="internalNote">${escapeHtml(order.admin?.internalNote || "")}</textarea></div>
         <div class="field full"><label for="result">服务结果说明</label><textarea id="result" name="result">${escapeHtml(order.admin?.result || "")}</textarea></div>
         <div class="field full"><button class="primary-btn" type="submit">保存修改</button></div>
@@ -1191,6 +1404,11 @@ function renderAdminDetailForm(order, warning = "") {
         isUrgent: data.urgent === "true",
         internalNotes: data.internalNote,
         resultNotes: data.result,
+        paymentStatus: data.paymentStatus,
+        paymentReceivedAmountCNY: data.paymentReceivedAmountCNY,
+        paymentCheckedAt: data.paymentCheckedAt ? new Date(data.paymentCheckedAt).toISOString() : "",
+        paymentCheckedBy: data.paymentCheckedBy,
+        paymentCheckNotes: data.paymentCheckNotes,
       });
       result.textContent = "订单修改已保存并同步到服务端。";
       renderAdminDetail(order.id);

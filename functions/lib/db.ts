@@ -14,6 +14,9 @@ export interface OrderRow {
   service_name: string;
   service_category: string | null;
   service_price_text: string | null;
+  payment_mode: string;
+  deposit_cny: number | null;
+  amount_eur_reference: string | null;
   customer_name: string;
   contact: string | null;
   wechat: string | null;
@@ -35,6 +38,20 @@ export interface OrderRow {
   current_stage: string | null;
   order_status: string;
   payment_status: string;
+  payment_channel: string | null;
+  payment_amount_cny: number | null;
+  payment_received_amount_cny: number | null;
+  payment_payer_name: string | null;
+  payment_remark: string | null;
+  payment_reported_at: string | null;
+  payment_submitted_at: string | null;
+  payment_proof_url: string | null;
+  paid_at: string | null;
+  payment_checked_at: string | null;
+  payment_checked_by: string | null;
+  payment_check_notes: string | null;
+  external_platform: string | null;
+  external_order_id: string | null;
   source: string | null;
   order_view_token_hash: string;
   notification_status: string;
@@ -61,6 +78,19 @@ export function toPublicOrder(row: OrderRow) {
     serviceName: row.service_name,
     serviceCategory: row.service_category || "",
     priceText: row.service_price_text || "待报价",
+    paymentMode: row.payment_mode || "manual_confirm",
+    depositCNY: row.deposit_cny,
+    amountEURReference: row.amount_eur_reference || "",
+    payment: {
+      status: row.payment_status,
+      channel: row.payment_channel || "",
+      amountCNY: row.payment_amount_cny,
+      payerName: row.payment_payer_name || "",
+      remark: row.payment_remark || "",
+      reportedAt: row.payment_reported_at || "",
+      submittedAt: row.payment_submitted_at || "",
+      paidAt: row.paid_at || "",
+    },
     customer: {
       name: row.customer_name,
       contact: row.contact || "",
@@ -96,8 +126,17 @@ export function toAdminOrder(row: OrderRow) {
       internalNote: row.internal_notes || "",
       urgent: Boolean(row.is_urgent),
       result: row.result_notes || "",
-      paid: row.payment_status === "paid",
+      paid: row.payment_status === "paid_external",
       completedAt: row.completed_at,
+      payment: {
+        receivedAmountCNY: row.payment_received_amount_cny,
+        checkedAt: row.payment_checked_at || "",
+        checkedBy: row.payment_checked_by || "",
+        checkNotes: row.payment_check_notes || "",
+        proofUrl: row.payment_proof_url || "",
+        externalPlatform: row.external_platform || "",
+        externalOrderId: row.external_order_id || "",
+      },
     },
   };
 }
