@@ -190,6 +190,7 @@ export interface PaymentConfirmationInput {
   paymentAmountCNY: number;
   paymentPayerName: string;
   paymentReportedAt: string;
+  paymentTradeNo: string;
   paymentRemark: string;
   email: string;
 }
@@ -205,11 +206,20 @@ export function validatePaymentConfirmation(body: Record<string, unknown>): Paym
   if (Number.isNaN(Date.parse(paymentReportedAt))) {
     throw new ApiError(400, "INVALID_PAYMENT_TIME", "付款时间格式不正确。");
   }
+  const paymentTradeNo = requireText(body.paymentTradeNo, "微信交易单号", 64);
+  if (!/^\d{10,64}$/.test(paymentTradeNo)) {
+    throw new ApiError(
+      400,
+      "INVALID_PAYMENT_TRADE_NO",
+      "微信交易单号应为微信账单详情中的数字，例如以 420000 开头。",
+    );
+  }
   return {
     paymentChannel: "wechat_qr",
     paymentAmountCNY,
-    paymentPayerName: requireText(body.paymentPayerName, "付款人姓名", 160),
+    paymentPayerName: text(body.paymentPayerName, 160),
     paymentReportedAt,
+    paymentTradeNo,
     paymentRemark: text(body.paymentRemark, 1000),
     email,
   };

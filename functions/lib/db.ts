@@ -42,6 +42,7 @@ export interface OrderRow {
   payment_amount_cny: number | null;
   payment_received_amount_cny: number | null;
   payment_payer_name: string | null;
+  payment_trade_no: string | null;
   payment_remark: string | null;
   payment_reported_at: string | null;
   payment_submitted_at: string | null;
@@ -86,6 +87,7 @@ export function toPublicOrder(row: OrderRow) {
       channel: row.payment_channel || "",
       amountCNY: row.payment_amount_cny,
       payerName: row.payment_payer_name || "",
+      tradeNo: row.payment_trade_no || "",
       remark: row.payment_remark || "",
       reportedAt: row.payment_reported_at || "",
       submittedAt: row.payment_submitted_at || "",

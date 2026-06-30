@@ -1467,6 +1467,12 @@ button {
   font-size: 13px;
 }
 
+.payment-proof-reminder {
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
 .payment-confirmation {
   margin-top: 16px;
   border-top: 1px solid var(--line);
@@ -1484,6 +1490,25 @@ button {
 
 .payment-confirmation .form-grid {
   margin-top: 16px;
+}
+
+.payment-confirmation .field small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.payment-proof-note {
+  margin: 0;
+}
+
+.payment-mismatch-notice {
+  border-color: #d58c2b;
+  background: #fff3df;
+  color: #7b4810;
+  font-weight: 700;
 }
 
 .payment-state-notice,

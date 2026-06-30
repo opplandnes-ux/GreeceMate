@@ -1065,8 +1065,8 @@ function renderOrderSuccess() {
         await submitPaymentConfirmationToServer(order, {
           paymentChannel: "wechat_qr",
           paymentAmountCNY: data.paymentAmountCNY,
-          paymentPayerName: data.paymentPayerName,
           paymentReportedAt: data.paymentReportedAt,
+          paymentTradeNo: data.paymentTradeNo,
           paymentRemark: data.paymentRemark,
           email: data.email,
         });
@@ -1095,6 +1095,7 @@ function renderOrderPaymentModule(order) {
       <p>请使用微信扫码支付。付款备注请填写订单号 + 邮箱。</p>
       <p class="payment-example">${escapeHtml(order.orderNumber || order.id)} + ${escapeHtml(order.customer.email || "你的邮箱")}</p>
       <p class="mobile-payment-tip">手机端可长按二维码识别付款。付款前请先复制订单号。</p>
+      <p class="payment-proof-reminder">付款后请保留微信账单截图，并在“我已付款”中填写微信交易单号、付款时间和金额。客服核对到账后更新订单状态。</p>
       <div class="card-actions">
         <button class="ghost-btn" id="copyOrderNumber" type="button">复制订单号</button>
         <a class="ghost-btn" href="/contact">联系客服</a>
@@ -1121,13 +1122,14 @@ function renderPaymentConfirmationForm(order) {
     <details class="payment-confirmation">
       <summary class="primary-btn">我已付款</summary>
       <form id="paymentConfirmationForm" class="form-grid">
+        <div class="field"><label>订单号</label><input value="${escapeHtml(order.orderNumber || order.id)}" disabled /></div>
+        <div class="field"><label for="paymentEmail">邮箱</label><input id="paymentEmail" name="email" type="email" value="${escapeHtml(order.customer.email || "")}" required /></div>
         <div class="field"><label>付款渠道</label><input value="微信支付" disabled /></div>
         <div class="field"><label for="paymentAmountCNY">付款金额（人民币）</label><input id="paymentAmountCNY" name="paymentAmountCNY" type="number" min="0.01" step="0.01" value="${escapeHtml(order.depositCNY || "")}" required /></div>
-        <div class="field"><label for="paymentPayerName">付款人姓名</label><input id="paymentPayerName" name="paymentPayerName" required /></div>
         <div class="field"><label for="paymentReportedAt">付款时间</label><input id="paymentReportedAt" name="paymentReportedAt" type="datetime-local" value="${localDateTimeValue()}" required /></div>
-        <div class="field full"><label for="paymentRemark">付款备注</label><input id="paymentRemark" name="paymentRemark" placeholder="请填写付款时使用的备注" /></div>
-        <div class="field"><label for="paymentEmail">邮箱</label><input id="paymentEmail" name="email" type="email" value="${escapeHtml(order.customer.email || "")}" required /></div>
-        <div class="field"><label>订单号</label><input value="${escapeHtml(order.orderNumber || order.id)}" disabled /></div>
+        <div class="field"><label for="paymentTradeNo">微信交易单号</label><input id="paymentTradeNo" name="paymentTradeNo" inputmode="numeric" pattern="[0-9]{10,64}" maxlength="64" required /><small>可在微信账单详情中查看，例如以 420000 开头的一串数字。</small></div>
+        <div class="field full"><label for="paymentRemark">付款备注</label><input id="paymentRemark" name="paymentRemark" placeholder="选填：请填写付款时使用的备注" /></div>
+        <div class="field full"><div class="notice payment-proof-note"><strong>付款截图：</strong>当前暂未启用截图上传，请保留微信账单截图，以便客服需要时核对。</div></div>
         <div class="field full"><button class="primary-btn" type="submit">提交付款信息</button></div>
       </form>
       <p id="paymentConfirmationResult" class="form-result" aria-live="polite"></p>
@@ -1351,6 +1353,13 @@ function renderAdminDetailForm(order, warning = "") {
   if (!target) return;
   const payment = order.payment || {};
   const adminPayment = order.admin?.payment || {};
+  const hasExpectedAmount = order.depositCNY !== null && order.depositCNY !== undefined && order.depositCNY !== "";
+  const hasReportedAmount = payment.amountCNY !== null && payment.amountCNY !== undefined && payment.amountCNY !== "";
+  const paymentAmountMatches =
+    hasExpectedAmount && hasReportedAmount
+      ? Math.abs(Number(order.depositCNY) - Number(payment.amountCNY)) < 0.01
+      : null;
+  const amountMatchText = paymentAmountMatches === null ? "待提交 / 待核对" : paymentAmountMatches ? "一致" : "不一致";
   target.className = "container detail-layout";
   target.innerHTML = `
     <section class="form-panel">
@@ -1365,9 +1374,12 @@ function renderAdminDetailForm(order, warning = "") {
         <div class="field"><label>付款渠道</label><input value="${paymentChannelLabel(payment.channel)}" disabled /></div>
         <div class="field"><label>应收预约金</label><input value="${paymentAmount(order.depositCNY)}" disabled /></div>
         <div class="field"><label>客户填写付款金额</label><input value="${paymentAmount(payment.amountCNY)}" disabled /></div>
-        <div class="field"><label>付款人姓名</label><input value="${escapeHtml(payment.payerName || "未提交")}" disabled /></div>
+        <div class="field"><label>金额是否匹配</label><input value="${amountMatchText}" disabled /></div>
         <div class="field"><label>客户填写付款时间</label><input value="${escapeHtml(payment.reportedAt || "未提交")}" disabled /></div>
+        <div class="field full"><label>微信交易单号</label><input value="${escapeHtml(payment.tradeNo || "未提交")}" disabled /></div>
         <div class="field full"><label>付款备注</label><input value="${escapeHtml(payment.remark || "未提交")}" disabled /></div>
+        <div class="field full"><label>付款截图</label>${adminPayment.proofUrl ? `<a class="ghost-btn" href="${escapeHtml(adminPayment.proofUrl)}" target="_blank" rel="noopener">查看付款截图</a>` : '<input value="未上传（当前未启用截图上传）" disabled />'}</div>
+        ${paymentAmountMatches === false ? '<div class="field full"><div class="notice payment-mismatch-notice">付款金额与应付预约金不一致，请人工核查。</div></div>' : ""}
         <div class="field"><label for="paymentReceivedAmountCNY">实际到账金额（人民币）</label><input id="paymentReceivedAmountCNY" name="paymentReceivedAmountCNY" type="number" min="0" step="0.01" value="${escapeHtml(adminPayment.receivedAmountCNY ?? "")}" /></div>
         <div class="field"><label for="paymentCheckedAt">核款 / 到账时间</label><input id="paymentCheckedAt" name="paymentCheckedAt" type="datetime-local" value="${escapeHtml(adminPayment.checkedAt ? localDateTimeValue(new Date(adminPayment.checkedAt)) : "")}" /></div>
         <div class="field"><label for="paymentCheckedBy">核款人</label><input id="paymentCheckedBy" name="paymentCheckedBy" value="${escapeHtml(adminPayment.checkedBy || order.admin?.owner || "")}" /></div>

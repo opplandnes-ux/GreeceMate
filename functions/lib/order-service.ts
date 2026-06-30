@@ -231,7 +231,7 @@ export async function submitPaymentConfirmation(
   await env.DB.prepare(
     `UPDATE orders SET
       payment_status = 'pending_manual_check', payment_channel = ?, payment_amount_cny = ?,
-      payment_payer_name = ?, payment_remark = ?, payment_reported_at = ?,
+      payment_payer_name = ?, payment_trade_no = ?, payment_remark = ?, payment_reported_at = ?,
       payment_submitted_at = ?, order_status = '待核款', updated_at = ?, version = version + 1
      WHERE id = ?`,
   )
@@ -239,6 +239,7 @@ export async function submitPaymentConfirmation(
       input.paymentChannel,
       input.paymentAmountCNY,
       input.paymentPayerName,
+      input.paymentTradeNo,
       input.paymentRemark,
       input.paymentReportedAt,
       now,
