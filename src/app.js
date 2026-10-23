@@ -252,6 +252,12 @@ function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
+function renewalCalculatorLink(service) {
+  return service.id === "residence-renewal"
+    ? '<a class="ghost-btn" href="https://3706t76.sharehtml.org/" target="_blank" rel="noopener noreferrer">计算续签费用 ↗</a>'
+    : "";
+}
+
 function serviceCard(service) {
   return `
     <article class="service-card">
@@ -269,6 +275,7 @@ function serviceCard(service) {
       </div>
       <div class="card-actions">
         <a class="ghost-btn" href="/services/${service.id}">查看详情</a>
+        ${renewalCalculatorLink(service)}
         <a class="primary-btn" href="/order/${service.id}">${serviceCta(service)}</a>
       </div>
     </article>
@@ -796,6 +803,14 @@ function renderServiceDetail(serviceId) {
               <p>${service.short}</p>
               <p><strong>适合人群：</strong>${service.forWhom}</p>
             </section>
+            ${service.id === "residence-renewal" ? `
+            <section class="card detail-block" aria-labelledby="renewal-calculator-title">
+              <span class="tag gold">费用预估</span>
+              <h2 id="renewal-calculator-title">黄金居留续签费用计算</h2>
+              <p>按办理人数、保险、接送及住宿需求，快速估算续签费用并提交咨询。</p>
+              <div class="card-actions">${renewalCalculatorLink(service)}</div>
+              <p>将在新窗口打开 SUNMIX · BLUENOTE 费用计算与咨询页面。计算结果为预估，具体服务范围及最终费用由客服确认。</p>
+            </section>` : ""}
             ${detailList("服务内容", service.includes)}
             ${detailList("不包含的内容", service.excludes)}
             ${detailList("所需资料", service.materials)}
