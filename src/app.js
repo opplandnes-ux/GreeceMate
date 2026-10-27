@@ -758,6 +758,7 @@ function renderServices() {
   const { params } = route();
   const active = params.get("category") || "all";
   const filtered = active === "all" ? SERVICES : SERVICES.filter((service) => service.categoryId === active);
+  const showHomePlanner = active === "property";
   shell(`
     <main>
       <section class="services-hero">
@@ -774,6 +775,21 @@ function renderServices() {
       </section>
       <section class="section services-grid-section">
         <div class="container">
+          ${showHomePlanner ? `
+          <a class="home-planner-card" href="${HOME_PLANNER_URL}" target="_blank" rel="noopener">
+            <div>
+              <span class="tag gold">免费工具｜无需下单</span>
+              <h2>新家配置预算工具</h2>
+              <p>准备收房、入住或出租？在线选择硬装、家电及安装项目，生成一份可调整、可导出的参考预算清单。</p>
+              <div class="tag-list">
+                <span class="tag">硬装核对</span>
+                <span class="tag">家电配置</span>
+                <span class="tag">安装配送</span>
+                <span class="tag">预算导出</span>
+              </div>
+            </div>
+            <span class="primary-btn">开始配置预算</span>
+          </a>` : ""}
           <div class="grid three" style="margin-top:18px">${filtered.map(serviceCard).join("")}</div>
         </div>
       </section>
