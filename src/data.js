@@ -17,6 +17,8 @@ const ADMIN_USERS = ["客服-Alex Nan", "房管-SUA", "出行顾问-Vivian", "�
 
 const PAYMENT_NOTE = "付款备注请填写：订单号 + 邮箱。";
 
+const HOME_PLANNER_URL = "https://greece-home-bn.netlify.app/?utm_source=greecemate&utm_medium=referral&utm_campaign=home_planner";
+
 const ORDER_STATUSES = [
   "新订单",
   "待核款",
@@ -45,7 +47,7 @@ const CATEGORIES = [
     title: "我要管房",
     summary: "房屋状态核验、收房交接、维修复核、物业沟通与账单代缴协助。",
     icon: "home",
-    items: ["房屋出租前体检", "购房前房屋现场核验", "换中介前收房交接", "维修核验", "物业沟通", "账单代缴"],
+    items: ["新家配置预算", "房屋出租前体检", "购房前房屋现场核验", "换中介前收房交接", "维修核验", "物业沟通", "账单代缴"],
   },
   {
     id: "travel",
