@@ -14,6 +14,7 @@ export interface OrderRow {
   service_name: string;
   service_category: string | null;
   service_price_text: string | null;
+  service_snapshot_json: string | null;
   payment_mode: string;
   deposit_cny: number | null;
   amount_eur_reference: string | null;
@@ -36,6 +37,21 @@ export interface OrderRow {
   golden_visa_plan: string | null;
   family_members: string | null;
   current_stage: string | null;
+  custom_fields_json: string;
+  location_status: string | null;
+  quote_status: string;
+  quote_service_fee_eur_minor: number | null;
+  quote_third_party_fee_eur_minor: number | null;
+  quote_material_fee_eur_minor: number | null;
+  quote_other_fee_eur_minor: number | null;
+  quote_other_note: string | null;
+  quote_total_eur_minor: number | null;
+  quote_version: number;
+  quote_confirmed_at: string | null;
+  customer_confirmation_status: string;
+  customer_confirmed_at: string | null;
+  public_reply: string | null;
+  repeat_of_order_id: string | null;
   order_status: string;
   payment_status: string;
   payment_channel: string | null;
@@ -65,6 +81,18 @@ export interface OrderRow {
 }
 
 export function toPublicOrder(row: OrderRow) {
+  let customFields: Record<string, unknown> = {};
+  try {
+    customFields = JSON.parse(row.custom_fields_json || "{}");
+  } catch {
+    customFields = {};
+  }
+  let serviceSnapshot: Record<string, unknown> | null = null;
+  try {
+    serviceSnapshot = row.service_snapshot_json ? JSON.parse(row.service_snapshot_json) : null;
+  } catch {
+    serviceSnapshot = null;
+  }
   return {
     id: row.id,
     orderId: row.id,
@@ -79,6 +107,7 @@ export function toPublicOrder(row: OrderRow) {
     serviceName: row.service_name,
     serviceCategory: row.service_category || "",
     priceText: row.service_price_text || "待报价",
+    serviceSnapshot,
     paymentMode: row.payment_mode || "manual_confirm",
     depositCNY: row.deposit_cny,
     amountEURReference: row.amount_eur_reference || "",
@@ -115,7 +144,25 @@ export function toPublicOrder(row: OrderRow) {
       goldenVisaPlan: row.golden_visa_plan || "",
       familyMembers: row.family_members || "",
       currentStage: row.current_stage || "",
+      customFields,
+      locationStatus: row.location_status || "",
     },
+    quote: {
+      status: row.quote_status || "not_quoted",
+      serviceFeeEURMinor: row.quote_service_fee_eur_minor,
+      thirdPartyFeeEURMinor: row.quote_third_party_fee_eur_minor,
+      materialFeeEURMinor: row.quote_material_fee_eur_minor,
+      otherFeeEURMinor: row.quote_other_fee_eur_minor,
+      otherNote: row.quote_other_note || "",
+      totalEURMinor: row.quote_total_eur_minor,
+      version: row.quote_version || 0,
+      confirmedAt: row.quote_confirmed_at || "",
+      customerConfirmationStatus: row.customer_confirmation_status || "not_requested",
+      customerConfirmedAt: row.customer_confirmed_at || "",
+    },
+    publicReply: row.public_reply || "",
+    result: row.result_notes || "",
+    repeatOfOrderId: row.repeat_of_order_id || "",
   };
 }
 

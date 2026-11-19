@@ -1,6 +1,6 @@
-# 希友帮｜GreeceMate MVP 原型
+# 希友帮｜GreeceMate 服务平台
 
-这是「希友帮｜GreeceMate｜中国人在希腊的本地服务助手」第一阶段 MVP。当前版本已加入 Cloudflare Pages Functions + D1 服务端订单层，页面仍可静态浏览，正式订单以 D1 为准。
+这是「希友帮｜GreeceMate｜中国人在希腊的本地服务助手」服务平台。Cloudflare Pages Functions 提供服务目录、需求、订单、报价、附件和后台接口，Cloudflare D1 保存正式数据；页面仍可静态浏览，并在 API 暂不可用时保留原有服务目录作为只读回退。
 
 ## 品牌与域名
 
@@ -34,14 +34,17 @@ http://localhost:8788
 
 ## 已实现页面
 
-- 首页：品牌、主标题、副标题、CTA、五大服务入口、热门服务、选择理由、流程、合规说明和联系方式。
+- 首页：保留原有主营服务顺序，并增加显眼的“日常帮忙”入口。
+- 日常帮忙：五类生活及房屋需求；未确认负责人、范围和报价的模板默认保持草稿。
+- 其他需求：支持所在地、待协商时间、动态表单和多附件，提交后统一进入“待评估”。
 - Buyer Service 买方代表页：自选房源安心购入口、痛点、定位、流程、套餐、服务边界和房源初筛表单。
 - 服务列表页：支持全部服务和五大分类筛选。
 - 服务详情页：包含简介、适合人群、服务内容、不包含内容、所需资料、流程、时间、价格、退款规则和合规提示。
 - 下单表单页：姓名、微信、WhatsApp、邮箱、国家、希腊城市、时间、服务类型、描述、加急、中文陪同、上传资料和备注。
 - 订单提交成功页：显示订单信息、服务说明、免责声明和支付占位按钮。
-- 用户订单状态页：展示 11 个订单状态流转。
-- 后台订单管理页：订单列表、订单详情、修改状态、分派负责人、内部备注、加急、付款标记和服务结果说明。
+- 用户订单状态页：展示公开进度、分项报价、结果和附件，支持确认报价、补充资料及再次预约。
+- 后台订单管理页：评估、分项报价、公开回复、分派、内部备注、付款核实、进度和结果。
+- 后台服务管理页：新增、编辑、复制、预览、发布、暂停、下架、排序、动态字段和版本记录。
 
 ## 项目结构
 
@@ -64,7 +67,7 @@ xiyoubang-mvp/
 
 ## 数据说明
 
-12 个种子服务在 `src/data.js` 中维护：
+12 个原有种子服务仍保留在 `src/data.js` 中用于兼容回退；正式服务目录由 D1 的 `services` 表维护。`migrations/0004_service_platform.sql` 会导入原有服务，并加入 13 个默认草稿的日常帮忙模板。
 
 1. 希腊机场接送服务
 2. 希腊银行开户协助
@@ -93,16 +96,27 @@ xiyoubang.orders.v1
    - `ORDER_TOKEN_SECRET`：至少 32 位随机字符；
    - `ADMIN_SECRET`：后台过渡期管理员凭证。
 4. `GOOGLE_APPS_SCRIPT_ENDPOINT` 已保持为现有地址，可由环境变量覆盖，但不要更换现有生产 URL。
-5. 使用 Cloudflare 控制台或已登录的 Wrangler 应用 `migrations/0001_orders.sql`。
+5. 按顺序应用 `migrations/0001_orders.sql` 至 `migrations/0004_service_platform.sql`。预览环境应绑定独立 D1 数据库并应用同一组迁移，避免测试数据进入生产库。
 
 生产环境不要提交 `.dev.vars`、真实密钥或数据库凭证。
+
+## 本地验收
+
+```bash
+npm ci
+npm run d1:migrate:local
+npm run typecheck
+npx wrangler pages functions build functions --outdir .tmp/functions-build --fallback-service ''
+```
+
+管理员入口仍使用 `ADMIN_SECRET` 作为过渡期鉴权。正式上线前建议替换为具名管理员账号和角色权限；在此之前，不应在系统中保存钥匙位置、门禁码或证件原件等需要按执行人员细分权限的内容。
 
 ## 后续接入建议
 
 - 支付：将成功页的微信支付、支付宝、银行转账占位按钮替换为后端创建支付单接口。
-- 数据库：把 `src/orders.js` 替换为 REST API 或 GraphQL 请求，数据库可选 PostgreSQL、MySQL 或 Supabase。
+- 附件：当前小附件保存在 D1；正式规模化前建议迁移到 R2，并配置病毒扫描、保留期和删除策略。
 - Buyer Service 表单：当前提交到 Google Apps Script Web App，地址为 `https://script.google.com/macros/s/AKfycbw4hGSztT7i_g3Kr8cgOeGu7rECxEuJfTqMf9vhHNQe5LoS220qAkvOYGu3mnD8XtpY/exec`。线索默认状态为「新提交」，状态列建议使用「新提交、已联系、待补资料、已报价、已成交、已关闭」。页面展示对外欧元起价，最终报价按房源复杂程度、家庭成员数量、区域、商改住情况、文件整改和实际服务范围确认。
-- 小程序：当前服务数据结构、订单字段和状态流转可直接迁移到微信小程序页面。
+- 小程序：复用 `/api/services`、`/api/orders` 和订单详情/报价/附件接口，不另建服务目录和订单数据源。
 - 多语言：当前为简体中文，后续可把 `src/data.js` 中的展示文案迁移到 `i18n/zh-CN.json`、`i18n/en.json`、`i18n/el.json`。
 - 淘宝入口：可把服务详情页作为外部客服承接页，淘宝店仅展示服务入口和客服引导，不承诺政府、银行或居留结果。
 
