@@ -1,5 +1,19 @@
 const ORDER_STORAGE_KEY = "xiyoubang.orders.v1";
 const ADMIN_SECRET_STORAGE_KEY = "greecemate.admin.secret.v1";
+const CUSTOMER_PROFILE_STORAGE_KEY = "greecemate.customer.profile.v1";
+
+function getCustomerProfile() {
+  try { return JSON.parse(localStorage.getItem(CUSTOMER_PROFILE_STORAGE_KEY) || "null"); }
+  catch { return null; }
+}
+
+function saveCustomerProfile(profile) {
+  localStorage.setItem(CUSTOMER_PROFILE_STORAGE_KEY, JSON.stringify(profile));
+}
+
+function deleteCustomerProfile() {
+  localStorage.removeItem(CUSTOMER_PROFILE_STORAGE_KEY);
+}
 
 function getOrders() {
   try {
@@ -65,6 +79,69 @@ async function submitOrderToServer(payload, idempotencyKey) {
   const result = await response.json();
   cacheServerOrder(result.order, result.orderViewToken);
   return result;
+}
+
+async function fetchPublicServices() {
+  const response = await fetch("/api/services", { headers: { Accept: "application/json" } });
+  if (!response.ok) throw new Error(await responseError(response));
+  const result = await response.json();
+  return Array.isArray(result.services) ? result.services : [];
+}
+
+async function uploadOrderAttachments(orderId, orderViewToken, files) {
+  if (!files?.length) return null;
+  const body = new FormData();
+  files.forEach((file) => body.append("files", file));
+  const response = await fetch(`/api/orders/${encodeURIComponent(orderId)}/attachments`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${orderViewToken}` },
+    body,
+  });
+  if (!response.ok) throw new Error(await responseError(response));
+  const result = await response.json();
+  return cacheServerOrder(result.order, orderViewToken);
+}
+
+async function confirmOrderQuote(order, accepted) {
+  const response = await fetch(`/api/orders/${encodeURIComponent(order.id)}/quote-confirmation`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${order.orderViewToken}`,
+    },
+    body: JSON.stringify({ accepted }),
+  });
+  if (!response.ok) throw new Error(await responseError(response));
+  const result = await response.json();
+  return cacheServerOrder(result.order, order.orderViewToken);
+}
+
+async function submitOrderSupplement(order, payload) {
+  const response = await fetch(`/api/orders/${encodeURIComponent(order.id)}/supplement`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${order.orderViewToken}` },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error(await responseError(response));
+  const result = await response.json();
+  return cacheServerOrder(result.order, order.orderViewToken);
+}
+
+async function downloadOrderAttachment(order, attachmentId, admin = false) {
+  const headers = admin
+    ? { "X-Admin-Secret": getAdminSecret() }
+    : { Authorization: `Bearer ${order.orderViewToken}` };
+  const response = await fetch(`/api/orders/${encodeURIComponent(order.id)}/attachments/${encodeURIComponent(attachmentId)}`, { headers });
+  if (!response.ok) throw new Error(await responseError(response));
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "attachment";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 async function fetchServerOrder(order) {
@@ -176,4 +253,37 @@ async function patchAdminOrder(orderId, update) {
   });
   upsertCachedOrder({ ...result.order, serverBacked: true, syncStatus: "synced" });
   return result.order;
+}
+
+async function fetchAdminServices() {
+  const result = await adminRequest("/api/admin/services");
+  return result.services || [];
+}
+
+async function fetchAdminService(serviceId) {
+  return adminRequest(`/api/admin/services/${encodeURIComponent(serviceId)}`);
+}
+
+async function createAdminService(payload) {
+  const result = await adminRequest("/api/admin/services", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return result.service;
+}
+
+async function updateAdminService(serviceId, payload) {
+  const result = await adminRequest(`/api/admin/services/${encodeURIComponent(serviceId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+  return result.service;
+}
+
+async function duplicateAdminService(serviceId, newId) {
+  const result = await adminRequest(`/api/admin/services/${encodeURIComponent(serviceId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ action: "duplicate", newId }),
+  });
+  return result.service;
 }

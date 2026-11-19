@@ -1,17 +1,22 @@
 import { ApiError } from "./errors";
+import type { Env } from "./db";
+import { getService, serviceSnapshot } from "./service-catalog";
 
 export const ORDER_STATUSES = [
+  "待评估",
   "新订单",
   "待核款",
   "待确认",
   "待补资料",
   "已报价",
+  "待付款",
   "已付款",
   "已派单",
   "执行中",
   "待客户确认",
   "已完成",
   "已取消",
+  "无法承接",
   "售后处理中",
 ] as const;
 
@@ -87,6 +92,10 @@ export interface ValidatedOrderInput {
   familyMembers: string;
   currentStage: string;
   source: string;
+  serviceSnapshot: string;
+  customFields: Record<string, unknown>;
+  locationStatus: string;
+  repeatOfOrderId: string;
 }
 
 function text(value: unknown, maxLength: number): string {
@@ -104,7 +113,19 @@ function requireText(value: unknown, label: string, maxLength: number): string {
   return result;
 }
 
-export function validateOrderInput(body: Record<string, unknown>): ValidatedOrderInput {
+function customFieldValues(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const result: Record<string, unknown> = {};
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>).slice(0, 40)) {
+    if (!/^[a-zA-Z0-9_-]{1,60}$/.test(key)) continue;
+    if (Array.isArray(raw)) result[key] = raw.slice(0, 30).map((item) => text(item, 500));
+    else if (typeof raw === "number") result[key] = Number.isFinite(raw) ? raw : "";
+    else result[key] = text(raw, 2000);
+  }
+  return result;
+}
+
+export async function validateOrderInput(body: Record<string, unknown>, env: Env): Promise<ValidatedOrderInput> {
   const rawType = text(body.orderType || body.formType, 32);
   if (rawType !== "serviceOrder" && rawType !== "buyerService") {
     throw new ApiError(400, "INVALID_ORDER_TYPE", "订单类型不正确。" );
@@ -112,11 +133,50 @@ export function validateOrderInput(body: Record<string, unknown>): ValidatedOrde
 
   const fallbackServiceId = rawType === "buyerService" ? "buyer-service" : "";
   const serviceId = requireText(body.serviceId || fallbackServiceId, "服务类型", 80);
-  const serviceName = SERVICE_CATALOG[serviceId];
-  if (!serviceName) {
-    throw new ApiError(400, "INVALID_SERVICE", "所选服务不存在或暂不可提交。" );
+  let serviceName = SERVICE_CATALOG[serviceId] || "";
+  let serviceCategory = text(body.serviceCategory, 120);
+  let servicePriceText = text(body.servicePrice || body.servicePriceText, 500);
+  let serviceSnapshotJSON = "";
+  let payment = PAYMENT_CATALOG[serviceId];
+  let formSchema: Array<{ id: string; label: string; type: string; required: boolean; options?: string[] }> = [];
+  if (rawType === "buyerService") {
+    serviceName = SERVICE_CATALOG["buyer-service"];
+    payment = PAYMENT_CATALOG["buyer-service"];
+  } else if (serviceId === "other-request") {
+    serviceName = "其他需求｜日常帮忙";
+    serviceCategory = "日常帮忙";
+    servicePriceText = "待客服评估";
+    payment = { paymentMode: "manual_confirm", depositCNY: null, amountEURReference: "待客服评估" };
+    serviceSnapshotJSON = JSON.stringify({
+      id: serviceId,
+      name: serviceName,
+      categoryId: "daily-help",
+      price: servicePriceText,
+      pricingMode: "manual_quote",
+      status: "published",
+    });
+  } else {
+    const row = await getService(env, serviceId, true);
+    const snapshot = JSON.parse(serviceSnapshot(row)) as {
+      name: string;
+      categoryId: string;
+      price: string;
+      paymentMode: "wechat_qr_deposit" | "manual_confirm";
+      depositCNY: number | null;
+      amountEURReference: string;
+      formSchema: Array<{ id: string; label: string; type: string; required: boolean; options?: string[] }>;
+    };
+    serviceName = snapshot.name;
+    serviceCategory = snapshot.categoryId;
+    servicePriceText = snapshot.price;
+    payment = {
+      paymentMode: snapshot.paymentMode,
+      depositCNY: snapshot.depositCNY,
+      amountEURReference: snapshot.amountEURReference,
+    };
+    formSchema = snapshot.formSchema || [];
+    serviceSnapshotJSON = JSON.stringify(snapshot);
   }
-  const payment = PAYMENT_CATALOG[serviceId];
 
   const customerName = requireText(body.customerName || body.name, "姓名", 120);
   const email = text(body.email, 254);
@@ -131,12 +191,31 @@ export function validateOrderInput(body: Record<string, unknown>): ValidatedOrde
     throw new ApiError(400, "CONTACT_REQUIRED", "请至少填写一种联系方式。" );
   }
 
+  const customFields = customFieldValues(body.customFields);
+  for (const field of formSchema) {
+    if (!field.required || field.type === "attachment") continue;
+    const value = customFields[field.id];
+    const empty = Array.isArray(value) ? value.length === 0 : value === undefined || value === null || value === "";
+    if (empty) throw new ApiError(400, "CUSTOM_FIELD_REQUIRED", `请填写${field.label}。`);
+    if (field.options?.length) {
+      const values = Array.isArray(value) ? value : [value];
+      if (values.some((item) => !field.options?.includes(String(item)))) {
+        throw new ApiError(400, "INVALID_CUSTOM_FIELD", `${field.label}的选项不正确。`);
+      }
+    }
+  }
+
+  const locationStatus = text(body.locationStatus, 40);
+  if (serviceId === "other-request" && !["athens", "outside-athens", "other"].includes(locationStatus)) {
+    throw new ApiError(400, "LOCATION_STATUS_REQUIRED", "请选择您目前所在位置。");
+  }
+
   return {
     orderType: rawType,
     serviceId,
     serviceName,
-    serviceCategory: text(body.serviceCategory, 120),
-    servicePriceText: text(body.servicePrice || body.servicePriceText, 500),
+    serviceCategory,
+    servicePriceText,
     paymentMode: payment.paymentMode,
     depositCNY: payment.depositCNY,
     amountEURReference: payment.amountEURReference,
@@ -160,6 +239,10 @@ export function validateOrderInput(body: Record<string, unknown>): ValidatedOrde
     familyMembers: text(body.familyMembers || body.family_members || body.familySize, 80),
     currentStage: text(body.currentStage || body.stage || body.buyerStage, 160),
     source: text(body.source || body.sourcePage, 1000),
+    serviceSnapshot: serviceSnapshotJSON,
+    customFields,
+    locationStatus,
+    repeatOfOrderId: text(body.repeatOfOrderId, 80),
   };
 }
 
@@ -174,6 +257,14 @@ export interface AdminUpdateInput {
   paymentCheckedAt?: string;
   paymentCheckedBy?: string;
   paymentCheckNotes?: string;
+  publicReply?: string;
+  quoteStatus?: "not_quoted" | "draft" | "sent" | "confirmed" | "rejected";
+  quoteServiceFeeEURMinor?: number | null;
+  quoteThirdPartyFeeEURMinor?: number | null;
+  quoteMaterialFeeEURMinor?: number | null;
+  quoteOtherFeeEURMinor?: number | null;
+  quoteOtherNote?: string;
+  publicProgressNote?: string;
 }
 
 function optionalAmount(value: unknown, label: string): number | null {
@@ -251,6 +342,20 @@ export function validateAdminUpdate(body: Record<string, unknown>): AdminUpdateI
   if (body.paymentCheckedAt !== undefined) update.paymentCheckedAt = text(body.paymentCheckedAt, 80);
   if (body.paymentCheckedBy !== undefined) update.paymentCheckedBy = text(body.paymentCheckedBy, 160);
   if (body.paymentCheckNotes !== undefined) update.paymentCheckNotes = text(body.paymentCheckNotes, 5000);
+  if (body.publicReply !== undefined) update.publicReply = text(body.publicReply, 5000);
+  if (body.publicProgressNote !== undefined) update.publicProgressNote = text(body.publicProgressNote, 5000);
+  if (body.quoteStatus !== undefined) {
+    const quoteStatus = text(body.quoteStatus, 30);
+    if (!["not_quoted", "draft", "sent", "confirmed", "rejected"].includes(quoteStatus)) {
+      throw new ApiError(400, "INVALID_QUOTE_STATUS", "报价状态不正确。");
+    }
+    update.quoteStatus = quoteStatus as AdminUpdateInput["quoteStatus"];
+  }
+  if (body.quoteServiceFeeEURMinor !== undefined) update.quoteServiceFeeEURMinor = optionalAmount(body.quoteServiceFeeEURMinor, "平台服务费");
+  if (body.quoteThirdPartyFeeEURMinor !== undefined) update.quoteThirdPartyFeeEURMinor = optionalAmount(body.quoteThirdPartyFeeEURMinor, "第三方人工费");
+  if (body.quoteMaterialFeeEURMinor !== undefined) update.quoteMaterialFeeEURMinor = optionalAmount(body.quoteMaterialFeeEURMinor, "材料费");
+  if (body.quoteOtherFeeEURMinor !== undefined) update.quoteOtherFeeEURMinor = optionalAmount(body.quoteOtherFeeEURMinor, "其他费用");
+  if (body.quoteOtherNote !== undefined) update.quoteOtherNote = text(body.quoteOtherNote, 1000);
 
   if (!Object.keys(update).length) {
     throw new ApiError(400, "EMPTY_UPDATE", "没有可保存的订单修改。" );

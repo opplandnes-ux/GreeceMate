@@ -20,17 +20,20 @@ const PAYMENT_NOTE = "付款备注请填写：订单号 + 邮箱。";
 const HOME_PLANNER_URL = "https://greece-home-bn.netlify.app/?utm_source=greecemate&utm_medium=referral&utm_campaign=home_planner";
 
 const ORDER_STATUSES = [
+  "待评估",
   "新订单",
   "待核款",
   "待确认",
   "待补资料",
   "已报价",
+  "待付款",
   "已付款",
   "已派单",
   "执行中",
   "待客户确认",
   "已完成",
   "已取消",
+  "无法承接",
   "售后处理中",
 ];
 
@@ -101,6 +104,7 @@ const SERVICES = [
   {
     id: "bank-appointment",
     categoryId: "affairs",
+    dailyHelpGroup: "account_affairs",
     name: "希腊银行开户协助",
     short: "协助整理开户资料、预约银行网点，并提供现场陪同沟通。",
     forWhom: "计划在希腊办理银行账户相关事项、需要现场沟通支持的客户。",
@@ -126,6 +130,7 @@ const SERVICES = [
   {
     id: "afm-assist",
     categoryId: "affairs",
+    dailyHelpGroup: "account_affairs",
     name: "希腊 AFM 税号申请协助",
     short: "协助准备 AFM 税号申请相关资料，并提供预约与现场陪同。",
     forWhom: "需要在希腊办理税号相关事项的购房、租房、开户或办事客户。",
@@ -151,6 +156,7 @@ const SERVICES = [
   {
     id: "pink-slip-reminder",
     categoryId: "identity",
+    dailyHelpGroup: "account_affairs",
     name: "希腊数字身份与联系方式维护",
     short: "协助建立和检查希腊手机号码、NCR、TAXISnet 和银行联系方式，维护客户在希腊长期使用的数字身份信息。",
     forWhom: "持有希腊黄金签证、在希腊开立了银行账户、使用 TAXISnet 或需要维护希腊手机号码、NCR 联系方式和银行联系信息的客户。",
@@ -201,6 +207,7 @@ const SERVICES = [
   {
     id: "rental-check",
     categoryId: "property",
+    dailyHelpGroup: "property_certificates",
     name: "房屋出租前状态体检",
     short: "出租前上门核验房屋状态，整理问题清单和照片记录。",
     forWhom: "准备出租房屋、希望降低后续纠纷和维修沟通成本的业主。",
@@ -226,6 +233,7 @@ const SERVICES = [
   {
     id: "pre-purchase-check",
     categoryId: "property",
+    dailyHelpGroup: "property_certificates",
     name: "购房前房屋现场核验",
     short: "购房前协助客户现场查看房屋状态和周边基础情况。",
     forWhom: "远程看房、准备购房、需要本地人员辅助核验的客户。",
@@ -250,6 +258,7 @@ const SERVICES = [
   {
     id: "handover",
     categoryId: "property",
+    dailyHelpGroup: "onsite_handover",
     name: "换中介前收房与资产交接",
     short: "协助业主在换中介或更换管理方前完成房屋交接记录。",
     forWhom: "希望清晰记录钥匙、家具、电器、账单和房屋状态的业主。",
@@ -275,6 +284,7 @@ const SERVICES = [
   {
     id: "repair-review",
     categoryId: "property",
+    dailyHelpGroup: "property_certificates",
     name: "上门维修核验与报价复核",
     short: "对维修问题进行现场核验，协助复核维修报价和施工结果。",
     forWhom: "收到维修报价、担心沟通不清或需要中文记录的业主。",
@@ -300,6 +310,7 @@ const SERVICES = [
   {
     id: "bill-payment",
     categoryId: "property",
+    dailyHelpGroup: "utilities_network",
     name: "希腊房产税 / 电费 / 水费 / 物业费代缴协助",
     short: "协助识别账单、提醒缴费节点，并提供代缴沟通支持。",
     forWhom: "不常在希腊、需要远程管理房屋账单的业主。",

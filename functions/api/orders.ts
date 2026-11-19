@@ -6,7 +6,7 @@ import { validateOrderInput } from "../lib/validation";
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   try {
     const body = await readJson(request);
-    const input = validateOrderInput(body);
+    const input = await validateOrderInput(body, env);
     const suppliedKey = request.headers.get("idempotency-key") || "";
     const idempotencyKey = suppliedKey.trim() || `server_${crypto.randomUUID()}`;
     if (idempotencyKey.length > 160) {

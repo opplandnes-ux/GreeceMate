@@ -8,6 +8,75 @@ const WECHAT_PAYMENT_QR_CONFIGURED = true;
 const PAYMENT_NOTICE =
   "GreeceMate 官网主要用于服务说明、需求提交和客服确认。部分标准服务可通过微信扫码支付预约金。付款后请备注订单号和邮箱，客服核对到账后更新订单状态。";
 
+const CUSTOMER_SERVICE_HOURS = "周一至周六 09:30–18:30（雅典时间）";
+const DAILY_HELP_GROUPS = [
+  { id: "property_certificates", title: "房屋检查与证书", description: "电工检查与证书更新、房屋巡查、维修检查。" },
+  { id: "utilities_network", title: "水电与网络", description: "账单问题、账户变更、网络安装与报修。" },
+  { id: "repairs_cleaning", title: "维修与清洁", description: "电工、水管工、空调维修、预约清洁。" },
+  { id: "onsite_handover", title: "上门与交接", description: "开门等师傅、钥匙交接、收货验货、收房交接。" },
+  { id: "account_affairs", title: "账户与办事", description: "手机保号、联系物业、预约办理、文件取送。" },
+];
+const OTHER_REQUEST_SERVICE = {
+  id: "other-request",
+  categoryId: "daily-help",
+  dailyHelpGroup: "",
+  name: "其他需求｜日常帮忙",
+  short: "没有找到合适服务？直接告诉我们需要处理的生活、办事或房屋事项。",
+  intro: "提交后由客服评估是否承接、办理方式、预计时间和费用。",
+  forWhom: "人在雅典或身在国外，需要希腊本地协助的客户。",
+  mode: "线上提交 / 人工评估",
+  priceType: "人工报价",
+  pricingMode: "manual_quote",
+  price: "待客服评估",
+  paymentMode: "manual_confirm",
+  depositCNY: null,
+  amountEURReference: "待客服评估",
+  includes: ["需求初步评估", "办理方式与时间确认", "费用说明", "承接结果回复"],
+  excludes: ["提交即代表已接单", "未经确认的现场安排", "政府、供应商或第三方结果保证"],
+  materials: [],
+  process: ["提交需求", "客服评估", "确认范围与报价", "客户确认", "安排执行", "更新进度", "提交结果", "完成"],
+  time: `客服时间：${CUSTOMER_SERVICE_HOURS}；具体安排时间待评估。`,
+  refund: "未确认服务及费用前不产生平台服务费；确认后按双方确认的取消规则执行。",
+  compliance: "在线提交仅表示需求已收到，不等同于已接单、已预约或办理成功。",
+  formSchema: [],
+};
+
+function normalizeCatalogService(service) {
+  const existing = SERVICES.find((item) => item.id === service.id) || {};
+  return {
+    ...existing,
+    ...service,
+    short: service.short || existing.short || service.intro || "提交后由客服确认服务范围。",
+    intro: service.intro || existing.intro || service.short || "",
+    forWhom: existing.forWhom || "需要该项希腊本地服务的客户。",
+    mode: existing.mode || (service.serviceAreas?.includes("远程") ? "线上 / 协助" : "线上提交 / 线下执行"),
+    includes: service.includes?.length ? service.includes : existing.includes || [],
+    excludes: service.excludes?.length ? service.excludes : existing.excludes || [],
+    materials: existing.materials || [],
+    process: existing.process || ["提交需求", "客服评估", "确认范围与报价", "客户确认", "安排执行", "更新进度", "提交结果", "完成"],
+    time: service.time || existing.time || "待客服评估",
+    refund: service.refund || existing.refund || "以确认服务时展示的取消规则为准。",
+    compliance: existing.compliance || COMPLIANCE_TEXT,
+    deposit: existing.deposit || (service.pricingMode === "deposit" ? "预约金金额以页面及客服最终确认为准。" : "提交后由客服确认费用。"),
+    priceType: service.priceType || existing.priceType || "人工报价",
+    price: service.price || existing.price || "待客服评估",
+    paymentMode: service.paymentMode || existing.paymentMode || "manual_confirm",
+    formSchema: Array.isArray(service.formSchema) ? service.formSchema : [],
+    popular: existing.popular || false,
+  };
+}
+
+async function loadServiceCatalog() {
+  try {
+    const remote = await fetchPublicServices();
+    if (!remote.length) return;
+    const normalized = remote.map(normalizeCatalogService);
+    SERVICES.splice(0, SERVICES.length, ...normalized);
+  } catch (error) {
+    console.warn("Service catalog unavailable; using bundled fallback.", error);
+  }
+}
+
 function icon(name) {
   const icons = {
     briefcase: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 6h4a2 2 0 0 1 2 2v1h4v11H4V9h4V8a2 2 0 0 1 2-2Z"/><path d="M8 9V8a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v1"/><path d="M4 13h16"/></svg>',
@@ -39,6 +108,7 @@ function pageTitle(path) {
   if (path === "/") return "希友帮｜GreeceMate｜中国人在希腊的本地服务助手";
   if (path === "/buyer-service") return "GreeceMate Buyer Service｜希腊自选房源购房买方代表服务";
   if (path === "/services") return "GreeceMate 服务列表｜希友帮";
+  if (path === "/daily-help") return "日常帮忙｜GreeceMate 希友帮";
   if (path === "/orders") return "我的订单｜GreeceMate";
   if (path === "/contact") return "联系客服｜GreeceMate";
   if (path.startsWith("/services/")) {
@@ -92,6 +162,7 @@ function shell(content) {
         <nav class="nav" aria-label="主要导航">
           <a href="/buyer-service">Buyer Service / 买方代表</a>
           <a href="/services">服务</a>
+          <a href="/daily-help">日常帮忙</a>
           <a href="/orders">我的订单</a>
           <a href="/contact">联系客服</a>
         </nav>
@@ -106,6 +177,7 @@ function shell(content) {
         <a href="/" ${mobileNavState("/")}>首页</a>
         <a href="/buyer-service" ${mobileNavState("/buyer-service")}>买方代表</a>
         <a href="/services" ${mobileNavState("/services")}>服务</a>
+        <a href="/daily-help" ${mobileNavState("/daily-help")}>日常帮忙</a>
         <a href="/orders" ${mobileNavState("/orders")}>我的订单</a>
         <a href="/contact" ${mobileNavState("/contact")}>联系客服</a>
       </nav>
@@ -282,6 +354,42 @@ function serviceCard(service) {
   `;
 }
 
+function dailyHelpGroupCard(group) {
+  const available = SERVICES.filter((service) => service.dailyHelpGroup === group.id).slice(0, 3);
+  return `
+    <article class="card daily-help-group-card">
+      <h3>${escapeHtml(group.title)}</h3>
+      <p>${escapeHtml(group.description)}</p>
+      <div class="tag-list">
+        ${available.length
+          ? available.map((service) => `<a class="tag" href="/services/${service.id}">${escapeHtml(service.name)}</a>`).join("")
+          : '<span class="tag">服务模板待业务确认</span>'}
+      </div>
+    </article>
+  `;
+}
+
+function dailyHelpSection() {
+  return `
+    <section class="section daily-help-feature" id="daily-help">
+      <div class="container">
+        <div class="daily-help-banner">
+          <div>
+            <span class="tag gold">日常使用入口</span>
+            <h2>日常帮忙</h2>
+            <p>人在雅典，或身在国外，都可以在线提交希腊生活和房屋相关需求。我们确认办理方式、时间和费用。</p>
+            <p class="service-hours-note">实际客服时间：${CUSTOMER_SERVICE_HOURS}。在线提交不等同于全天候人工响应。</p>
+          </div>
+          <div class="card-actions">
+            <a class="primary-btn" href="/daily-help">查看日常帮忙</a>
+            <a class="ghost-btn" href="/order/other-request">没有找到？告诉我们</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
 function renderHome() {
   const popular = SERVICES.filter((service) => service.popular).slice(0, 6);
   shell(`
@@ -311,6 +419,7 @@ function renderHome() {
       <div class="compliance-strip">
         <div class="container">合规提示：本平台提供协助、预约、陪同、资料整理和提醒服务，具体结果以相关机构或第三方最终要求为准。</div>
       </div>
+      ${dailyHelpSection()}
       <section class="section service-entry">
         <div class="container">
           <div class="section-head">
@@ -797,6 +906,37 @@ function renderServices() {
   `);
 }
 
+function renderDailyHelp() {
+  shell(`
+    <main>
+      <section class="services-hero daily-help-hero">
+        <div class="container services-hero-copy">
+          <span class="tag gold">GreeceMate 日常服务平台</span>
+          <h1>日常帮忙</h1>
+          <p>人在雅典，或身在国外，都可以在线提交希腊生活和房屋相关需求。我们确认办理方式、时间和费用。</p>
+          <p class="service-hours-note">实际客服时间：${CUSTOMER_SERVICE_HOURS}。非客服时间提交的需求将在下一客服时段处理。</p>
+        </div>
+      </section>
+      <section class="section services-grid-section">
+        <div class="container">
+          <div class="grid three daily-help-groups">
+            ${DAILY_HELP_GROUPS.map(dailyHelpGroupCard).join("")}
+          </div>
+          <section class="other-request-card">
+            <div>
+              <span class="tag gold">始终开放</span>
+              <h2>没有找到？告诉我们</h2>
+              <p>说明需要处理的事情并上传现场照片或文件。首次提交不要求详细地址、门禁、钥匙信息或敏感证件。</p>
+              <p>提交后生成真实需求记录，状态为“待评估”。客服会明确回复可承接、待补资料或无法承接。</p>
+            </div>
+            <a class="primary-btn" href="/order/other-request">提交其他需求</a>
+          </section>
+        </div>
+      </section>
+    </main>
+  `);
+}
+
 function detailList(title, items) {
   return `<section class="card detail-block"><h2>${title}</h2><ul class="clean-list">${items.map((item) => `<li>${item}</li>`).join("")}</ul></section>`;
 }
@@ -856,53 +996,88 @@ function renderServiceDetail(serviceId) {
   `);
 }
 
+function renderDynamicField(field) {
+  const name = `custom_${field.id}`;
+  const required = field.required ? "required" : "";
+  const label = `${escapeHtml(field.label)}${field.required ? " *" : ""}`;
+  if (field.type === "single") {
+    return `<div class="field"><label for="${name}">${label}</label><select id="${name}" name="${name}" ${required}><option value="">请选择</option>${(field.options || []).map((option) => `<option>${escapeHtml(option)}</option>`).join("")}</select></div>`;
+  }
+  if (field.type === "multi") {
+    return `<fieldset class="field full option-field"><legend>${label}</legend>${(field.options || []).map((option) => `<label><input type="checkbox" name="${name}" value="${escapeHtml(option)}" /> ${escapeHtml(option)}</label>`).join("")}</fieldset>`;
+  }
+  if (field.type === "attachment") {
+    return `<div class="field full"><label for="${name}">${label}</label><input id="${name}" name="attachments" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf,.doc,.docx,.xls,.xlsx" ${required} /></div>`;
+  }
+  const type = field.type === "number" ? "number" : field.type === "date" ? "date" : "text";
+  return `<div class="field"><label for="${name}">${label}</label><input id="${name}" name="${name}" type="${type}" ${required} placeholder="${escapeHtml(field.placeholder || "")}" /></div>`;
+}
+
+function collectCustomFields(formElement, schema) {
+  const data = new FormData(formElement);
+  const result = {};
+  for (const field of schema || []) {
+    const key = `custom_${field.id}`;
+    if (field.type === "attachment") continue;
+    result[field.id] = field.type === "multi" ? data.getAll(key).map(String) : String(data.get(key) || "");
+  }
+  return result;
+}
+
 function renderOrderForm(serviceId) {
-  const service = SERVICES.find((item) => item.id === serviceId) || SERVICES[0];
+  const service = serviceId === "other-request" ? OTHER_REQUEST_SERVICE : SERVICES.find((item) => item.id === serviceId);
+  if (!service) return renderNotFound();
   const category = CATEGORIES.find((item) => item.id === service.categoryId);
+  const { params } = route();
+  const repeatOrder = params.get("repeat") ? getOrder(params.get("repeat")) : null;
+  const savedProfile = getCustomerProfile() || {};
+  const customer = repeatOrder?.customer || savedProfile;
+  const request = repeatOrder?.request || {};
+  const otherRequest = service.id === "other-request";
   shell(`
     <main>
       <div class="container page-title">
-        <h1>提交服务需求</h1>
-        <p class="section-desc">当前选择：${service.name}。提交后客服会先确认服务边界、时间和报价说明。</p>
+        <h1>${otherRequest ? "告诉我们需要什么帮助" : "提交服务需求"}</h1>
+        <p class="section-desc">当前选择：${escapeHtml(service.name)}。提交后生成真实需求记录，由客服评估承接方式、时间和费用。</p>
       </div>
       <section class="section" style="padding-top:0">
         <div class="container detail-layout">
           <form class="form-panel" id="orderForm">
             <div class="form-grid">
-              ${field("姓名", "name", "text", true)}
-              ${field("微信号", "wechat", "text", true)}
-              ${field("WhatsApp", "whatsapp", "text", false)}
-              ${field("邮箱", "email", "email", true)}
-              ${field("当前所在国家", "country", "text", true, "中国 / 希腊 / 其他")}
-              ${field("希腊城市 / 区域", "city", "text", true, "例如 Athens, Piraeus, Glyfada")}
-              ${field("希望服务时间", "preferredTime", "datetime-local", true)}
-              <div class="field">
-                <label for="serviceType">服务类型</label>
-                <select id="serviceType" name="serviceType" required>
-                  ${SERVICES.map((item) => `<option value="${item.name}" ${item.id === service.id ? "selected" : ""}>${item.name}</option>`).join("")}
-                </select>
-              </div>
+              <div class="field"><label for="name">姓名</label><input id="name" name="name" required value="${escapeHtml(customer.name || "")}" /></div>
+              <div class="field"><label for="wechat">微信号（至少填写一种联系方式）</label><input id="wechat" name="wechat" value="${escapeHtml(customer.wechat || "")}" /></div>
+              <div class="field"><label for="whatsapp">WhatsApp</label><input id="whatsapp" name="whatsapp" value="${escapeHtml(customer.whatsapp || "")}" /></div>
+              <div class="field"><label for="email">邮箱</label><input id="email" name="email" type="email" value="${escapeHtml(customer.email || "")}" /></div>
+              <div class="field"><label for="locationStatus">您目前在哪里</label><select id="locationStatus" name="locationStatus" required><option value="">请选择</option><option value="athens" ${savedProfile.locationStatus === "athens" ? "selected" : ""}>我在雅典</option><option value="outside-athens" ${savedProfile.locationStatus === "outside-athens" ? "selected" : ""}>我不在雅典</option><option value="other" ${savedProfile.locationStatus === "other" ? "selected" : ""}>其他所在地</option></select></div>
+              <div class="field"><label for="country">当前国家 / 地区（选填）</label><input id="country" name="country" value="${escapeHtml(customer.country || "")}" placeholder="中国 / 希腊 / 其他" /></div>
+              <div class="field"><label for="city">服务城市 / 区域（选填）</label><input id="city" name="city" value="${escapeHtml(customer.city || "")}" placeholder="首次提交不必填写详细地址" /></div>
+              <div class="field"><label for="preferredTimeMode">希望服务时间</label><select id="preferredTimeMode" name="preferredTimeMode"><option value="待协商">待协商</option><option value="指定时间">选择时间</option></select></div>
+              <div class="field"><label for="preferredTime">指定时间（选填）</label><input id="preferredTime" name="preferredTime" type="datetime-local" /></div>
+              <div class="field"><label>服务类型</label><input value="${escapeHtml(service.name)}" disabled /></div>
               <div class="field"><label for="urgent">是否加急</label><select id="urgent" name="urgent"><option>否</option><option>是</option></select></div>
-              <div class="field"><label for="chineseCompanion">是否需要中文陪同</label><select id="chineseCompanion" name="chineseCompanion"><option>是</option><option>否</option></select></div>
-              <div class="field"><label for="uploadNeeded">是否需要上传资料</label><select id="uploadNeeded" name="uploadNeeded"><option>否</option><option>是</option></select></div>
-              <div class="field full"><label for="description">需求描述</label><textarea id="description" name="description" required placeholder="请说明服务背景、地址、时间、人数、资料状态或需要我们重点关注的问题。"></textarea></div>
-              <div class="field full"><label for="note">备注</label><textarea id="note" name="note" placeholder="如有特殊情况可在这里补充。"></textarea></div>
+              <div class="field"><label for="chineseCompanion">是否需要中文陪同</label><select id="chineseCompanion" name="chineseCompanion"><option>否</option><option>是</option></select></div>
+              <div class="field full"><label for="description">需求描述</label><textarea id="description" name="description" required placeholder="请说明需要处理的事情、目前情况和希望我们重点关注的问题。首次提交请不要填写门禁、钥匙位置、密码或敏感证件信息。">${escapeHtml(request.description || "")}</textarea></div>
+              ${(service.formSchema || []).map(renderDynamicField).join("")}
+              <div class="field full"><label for="attachments">上传照片或文件（选填，最多 5 个，单个不超过 4MB）</label><input id="attachments" name="attachments" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf,.doc,.docx,.xls,.xlsx" /></div>
+              <div class="field full"><label for="note">备注</label><textarea id="note" name="note" placeholder="如有特殊情况可在这里补充。">${escapeHtml(request.note || "")}</textarea></div>
+              <div class="field full"><label class="profile-save-option"><input type="checkbox" name="saveProfile" value="yes" /> 在当前设备保存常用联系资料，便于再次预约（可随时修改或删除）</label></div>
             </div>
             <input type="hidden" name="serviceId" value="${service.id}" />
-            <div class="notice" style="margin-top:16px">提交代表你理解：${COMPLIANCE_TEXT}</div>
+            <input type="hidden" name="repeatOfOrderId" value="${escapeHtml(repeatOrder?.id || "")}" />
+            <div class="notice" style="margin-top:16px"><strong>提交说明：</strong>需求提交成功后显示“待客服评估”，不代表已接单、已预约或办理成功。实际客服时间：${CUSTOMER_SERVICE_HOURS}。${COMPLIANCE_TEXT}</div>
             <div class="card-actions" style="margin-top:18px">
-              <button class="primary-btn" type="submit">提交订单</button>
-              <a class="ghost-btn" href="/services/${service.id}">返回详情</a>
+              <button class="primary-btn" type="submit">提交需求</button>
+              <a class="ghost-btn" href="${otherRequest ? "/daily-help" : `/services/${service.id}`}">返回</a>
             </div>
             <p id="orderFormResult" class="form-result" aria-live="polite"></p>
           </form>
           <aside class="order-side-stack side-box">
             <section class="card detail-block">
-              <h2>${service.name}</h2>
-              <p>${service.short}</p>
-              <div class="price">${service.price}</div>
-              <p>${service.deposit}</p>
-              <div class="notice">${COMPLIANCE_TEXT}</div>
+              <h2>${escapeHtml(service.name)}</h2>
+              <p>${escapeHtml(service.short)}</p>
+              <div class="price">${escapeHtml(service.price)}</div>
+              <p>${escapeHtml(service.deposit || "客服评估后确认办理方式、时间和费用。")}</p>
+              <div class="notice">在线提交不等同于全天候人工响应。</div>
             </section>
             ${renderPreSubmitPaymentCard(service)}
           </aside>
@@ -916,8 +1091,18 @@ function renderOrderForm(serviceId) {
     const result = document.querySelector("#orderFormResult");
     const submitButton = formElement.querySelector('button[type="submit"]');
     const form = new FormData(formElement);
-    const formValues = Object.fromEntries(form.entries());
+    const formValues = Object.fromEntries([...form.entries()].filter(([, value]) => !(value instanceof File)));
+    if (![formValues.wechat, formValues.whatsapp, formValues.email].some((value) => String(value || "").trim())) {
+      result.textContent = "请至少填写微信、WhatsApp 或邮箱中的一种联系方式。";
+      return;
+    }
+    const files = form.getAll("attachments").filter((item) => item instanceof File && item.size > 0);
+    if (files.length > 5) {
+      result.textContent = "每个需求最多上传 5 个文件。";
+      return;
+    }
     const payload = buildServiceOrderPayload(formValues, service, category);
+    payload.customFields = collectCustomFields(formElement, service.formSchema || []);
 
     submitButton.disabled = true;
     submitButton.textContent = "正在提交...";
@@ -925,15 +1110,22 @@ function renderOrderForm(serviceId) {
 
     try {
       const submitted = await submitServiceOrder(payload, getSubmissionKey(formElement));
+      if (files.length) {
+        submitButton.textContent = "正在上传附件...";
+        await uploadOrderAttachments(submitted.orderId, submitted.orderViewToken, files);
+      }
+      if (formValues.saveProfile === "yes") {
+        saveCustomerProfile({ name: formValues.name, wechat: formValues.wechat, whatsapp: formValues.whatsapp, email: formValues.email, country: formValues.country, city: formValues.city, locationStatus: formValues.locationStatus });
+      }
       delete formElement.dataset.submissionKey;
       navigate(`/order-success?order=${submitted.orderId}`);
       return;
     } catch (error) {
-      result.textContent = error instanceof Error ? error.message : "订单提交失败，请稍后重试。";
+      result.textContent = error instanceof Error ? error.message : "提交失败，请稍后重试。已填写内容仍保留在本页。";
     }
 
     submitButton.disabled = false;
-    submitButton.textContent = "提交订单";
+    submitButton.textContent = "重新提交";
   });
 }
 
@@ -984,12 +1176,14 @@ function buildServiceOrderPayload(formValues, service, category) {
     email: formValues.email || "",
     phone: "",
     serviceAddress: [formValues.country, formValues.city].filter(Boolean).join(" / "),
-    preferredTime: formValues.preferredTime || "",
+    preferredTime: formValues.preferredTimeMode === "指定时间" && formValues.preferredTime ? formValues.preferredTime : "待协商",
     urgent: formValues.urgent || "否",
     notes: formValues.note || "",
     source: `${window.location.pathname}${window.location.search}`,
     sourcePage: window.location.href,
-    status: "新提交",
+    locationStatus: formValues.locationStatus || "",
+    repeatOfOrderId: formValues.repeatOfOrderId || "",
+    status: "待评估",
     leadStatus: "新提交",
     "状态": "新提交",
   };
@@ -1188,7 +1382,8 @@ function renderOrders() {
     <main>
       <div class="container page-title">
         <h1>我的订单状态</h1>
-        <p class="section-desc">展示订单流转：新订单、确认、补资料、报价、付款、派单、执行、客户确认、完成或售后。</p>
+        <p class="section-desc">查看自己的需求、报价、进度和结果。订单与附件通过专属凭证隔离。</p>
+        <div class="card-actions"><a class="ghost-btn" href="/profile">管理当前设备的常用资料</a></div>
       </div>
       <section class="section" style="padding-top:0">
         <div class="container" id="userOrdersList"><div class="card empty">正在同步订单状态...</div></div>
@@ -1200,6 +1395,20 @@ function renderOrders() {
     .catch(() => renderUserOrdersList(getOrders(), true));
 }
 
+function renderCustomerProfile() {
+  const profile = getCustomerProfile() || {};
+  shell(`<main><div class="container page-title"><h1>常用联系资料</h1><p class="section-desc">资料仅保存在当前设备，可随时修改或删除。请不要保存证件、门禁、钥匙位置或密码。</p></div><section class="section" style="padding-top:0"><div class="container" style="max-width:720px"><form class="form-panel" id="profileForm"><div class="form-grid"><div class="field"><label>姓名</label><input name="name" value="${escapeHtml(profile.name || "")}" /></div><div class="field"><label>微信</label><input name="wechat" value="${escapeHtml(profile.wechat || "")}" /></div><div class="field"><label>WhatsApp</label><input name="whatsapp" value="${escapeHtml(profile.whatsapp || "")}" /></div><div class="field"><label>邮箱</label><input name="email" type="email" value="${escapeHtml(profile.email || "")}" /></div><div class="field"><label>国家 / 地区</label><input name="country" value="${escapeHtml(profile.country || "")}" /></div><div class="field"><label>常用城市 / 区域</label><input name="city" value="${escapeHtml(profile.city || "")}" /></div></div><div class="card-actions"><button class="primary-btn" type="submit">保存修改</button><button class="ghost-btn" id="deleteProfile" type="button">删除常用资料</button><a class="ghost-btn" href="/orders">返回我的订单</a></div><p id="profileResult" class="form-result"></p></form></div></section></main>`);
+  document.querySelector("#profileForm").addEventListener("submit", (event) => {
+    event.preventDefault();
+    saveCustomerProfile(Object.fromEntries(new FormData(event.currentTarget).entries()));
+    document.querySelector("#profileResult").textContent = "常用资料已保存在当前设备。";
+  });
+  document.querySelector("#deleteProfile").addEventListener("click", () => {
+    deleteCustomerProfile();
+    renderCustomerProfile();
+  });
+}
+
 function renderUserOrdersList(orders, syncFailed = false) {
   const target = document.querySelector("#userOrdersList");
   if (!target) return;
@@ -1207,6 +1416,64 @@ function renderUserOrdersList(orders, syncFailed = false) {
   target.innerHTML = `
     ${pending ? '<div class="notice" style="margin-bottom:16px">服务端状态暂时无法同步，以下为本地缓存，状态待同步。</div>' : ""}
     ${orders.length ? orders.map(userOrderCard).join("") : `<div class="card empty">还没有订单。<a href="/services">去选择服务</a></div>`}
+  `;
+  target.querySelectorAll("[data-quote-decision]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const order = getOrder(button.dataset.orderId);
+      if (!order) return;
+      button.disabled = true;
+      try {
+        await confirmOrderQuote(order, button.dataset.quoteDecision === "accept");
+        renderOrders();
+      } catch (error) {
+        button.disabled = false;
+        window.alert(error instanceof Error ? error.message : "报价确认失败，请稍后重试。");
+      }
+    });
+  });
+  target.querySelectorAll("[data-customer-attachment]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const order = getOrder(button.dataset.orderId);
+      if (!order) return;
+      try { await downloadOrderAttachment(order, button.dataset.customerAttachment); }
+      catch (error) { window.alert(error instanceof Error ? error.message : "附件下载失败。"); }
+    });
+  });
+  target.querySelectorAll("[data-supplement-form]").forEach((form) => form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const order = getOrder(form.dataset.orderId);
+    if (!order) return;
+    const data = Object.fromEntries(new FormData(form).entries());
+    const output = form.querySelector(".form-result");
+    try {
+      await submitOrderSupplement(order, data);
+      renderOrders();
+    } catch (error) {
+      output.textContent = error instanceof Error ? error.message : "补充资料提交失败。";
+    }
+  }));
+}
+
+function euroMinor(value) {
+  return value === null || value === undefined ? "—" : `€${(Number(value) / 100).toFixed(2)}`;
+}
+
+function orderQuoteMarkup(order) {
+  const quote = order.quote || {};
+  if (!quote.status || quote.status === "not_quoted" || quote.status === "draft") return "";
+  return `
+    <section class="order-quote">
+      <h3>客服报价</h3>
+      <div class="quote-grid">
+        <div><span>平台服务费</span><strong>${euroMinor(quote.serviceFeeEURMinor)}</strong></div>
+        <div><span>第三方人工费</span><strong>${euroMinor(quote.thirdPartyFeeEURMinor)}</strong></div>
+        <div><span>材料费</span><strong>${euroMinor(quote.materialFeeEURMinor)}</strong></div>
+        <div><span>其他费用</span><strong>${euroMinor(quote.otherFeeEURMinor)}</strong></div>
+        <div class="quote-total"><span>合计</span><strong>${euroMinor(quote.totalEURMinor)}</strong></div>
+      </div>
+      ${quote.otherNote ? `<p>${escapeHtml(quote.otherNote)}</p>` : ""}
+      ${quote.customerConfirmationStatus === "pending" ? `<div class="card-actions"><button class="primary-btn" data-quote-decision="accept" data-order-id="${order.id}">确认报价</button><button class="ghost-btn" data-quote-decision="reject" data-order-id="${order.id}">需要调整</button></div>` : `<p><strong>客户确认状态：</strong>${quote.customerConfirmationStatus === "confirmed" ? "已确认" : quote.customerConfirmationStatus === "rejected" ? "需要调整" : "待客服发送"}</p>`}
+    </section>
   `;
 }
 
@@ -1237,12 +1504,17 @@ function userOrderCard(order) {
         <p>${paymentMessage}</p>
         ${order.paymentMode === "wechat_qr_deposit" && order.paymentStatus === "unpaid" ? `<a class="primary-btn" href="/order-success?order=${encodeURIComponent(order.id)}">查看付款说明</a>` : ""}
       </div>
+      ${order.publicReply ? `<div class="notice"><strong>客服回复：</strong>${escapeHtml(order.publicReply)}</div>` : ""}
+      ${orderQuoteMarkup(order)}
+      ${order.result ? `<section class="card detail-block"><h3>服务结果</h3><p>${escapeHtml(order.result)}</p></section>` : ""}
       <div class="timeline">
-        ${ORDER_STATUSES.map((status, index) => {
-          const state = index < currentIndex ? "done" : index === currentIndex ? "current" : "";
-          return `<div class="timeline-row ${state}"><span class="dot">${index + 1}</span><div class="timeline-content"><strong>${status}</strong></div></div>`;
-        }).join("")}
+        ${(order.events || []).length
+          ? order.events.map((event, index) => `<div class="timeline-row ${index === order.events.length - 1 ? "current" : "done"}"><span class="dot">${index + 1}</span><div class="timeline-content"><strong>${escapeHtml(event.status || "进度更新")}</strong><p>${escapeHtml(event.public_note || "")}</p><small>${new Date(event.created_at).toLocaleString("zh-CN")}</small></div></div>`).join("")
+          : `<div class="timeline-row current"><span class="dot">1</span><div class="timeline-content"><strong>${escapeHtml(order.status)}</strong></div></div>`}
       </div>
+      ${(order.attachments || []).length ? `<div class="attachment-list"><h3>相关附件</h3>${order.attachments.map((item) => `<button class="tag" type="button" data-customer-attachment="${item.id}" data-order-id="${order.id}">${escapeHtml(item.file_name)}</button>`).join("")}</div>` : ""}
+      ${order.status === "待补资料" ? `<form class="form-panel" data-supplement-form data-order-id="${order.id}"><h3>补充资料</h3><p>如果您不在雅典，可在客服确认承接后补充现场联系人、进入方式及授权范围。请不要在此填写门禁密码或钥匙具体位置；敏感信息由客服按最小必要原则另行确认。</p><div class="form-grid"><div class="field"><label>现场联系人</label><input name="onsiteContact" /></div><div class="field"><label>进入房屋方式</label><input name="accessMethod" placeholder="例如：与物业预约 / 由联系人开门" /></div><div class="field full"><label>授权事项</label><textarea name="authorizationNotes"></textarea></div><div class="field full"><label>其他补充</label><textarea name="supplementNotes"></textarea></div></div><button class="primary-btn" type="submit">提交补充资料</button><p class="form-result" aria-live="polite"></p></form>` : ""}
+      <div class="card-actions"><a class="ghost-btn" href="/order/${encodeURIComponent(order.serviceId || "other-request")}?repeat=${encodeURIComponent(order.id)}">再次预约</a></div>
     </article>
   `;
 }
@@ -1261,9 +1533,14 @@ function renderAdmin() {
       <section class="section" style="padding-top:0">
         <div class="container admin-grid">
           <aside class="admin-panel">
-            <h2>筛选</h2>
+            <h2>后台功能</h2>
+            <div class="filter-list" style="margin-bottom:18px">
+              <a class="ghost-btn active" href="/admin">需求与订单</a>
+              <a class="ghost-btn" href="/admin/services">服务管理</a>
+            </div>
+            <h2>订单筛选</h2>
             <div class="filter-list">
-              ${["全部", "新订单", "待处理", "执行中", "已完成", "已取消"].map((item) => `<a class="ghost-btn ${filter === item ? "active" : ""}" href="/admin?filter=${item}">${item}</a>`).join("")}
+              ${["全部", "待评估", "待处理", "执行中", "已完成", "无法承接", "已取消"].map((item) => `<a class="ghost-btn ${filter === item ? "active" : ""}" href="/admin?filter=${item}">${item}</a>`).join("")}
             </div>
             <form id="adminSearchForm" style="margin-top:16px">
             <div class="field"><label for="adminSearch">按订单号或客户搜索</label><input id="adminSearch" name="search" value="${escapeHtml(search)}" /></div>
@@ -1352,9 +1629,169 @@ function renderAdminOrdersList(orders, warning = "") {
 
 function filterOrders(orders, filter) {
   if (filter === "全部") return orders;
-  if (filter === "待处理") return orders.filter((order) => ["新订单", "待核款", "待确认", "待补资料", "已报价"].includes(order.status));
+  if (filter === "待处理") return orders.filter((order) => ["待评估", "新订单", "待核款", "待确认", "待补资料", "已报价", "待付款"].includes(order.status));
   if (filter === "执行中") return orders.filter((order) => ["已付款", "已派单", "执行中", "待客户确认", "售后处理中"].includes(order.status));
   return orders.filter((order) => order.status === filter);
+}
+
+function renderAdminServices() {
+  if (!getAdminSecret()) return renderAdminLogin("/admin/services");
+  shell(`
+    <main>
+      <div class="container page-title">
+        <h1>服务管理</h1>
+        <p class="section-desc">服务目录保存在 D1。可创建草稿、配置表单、预览并发布，不需要修改代码。</p>
+      </div>
+      <section class="section" style="padding-top:0">
+        <div class="container admin-grid">
+          <aside class="admin-panel">
+            <h2>后台功能</h2>
+            <div class="filter-list">
+              <a class="ghost-btn" href="/admin">需求与订单</a>
+              <a class="ghost-btn active" href="/admin/services">服务管理</a>
+            </div>
+          </aside>
+          <section class="admin-panel">
+            <div class="section-head"><div><h2>服务目录</h2><p class="section-desc">草稿不会出现在客户页面。</p></div><a class="primary-btn" href="/admin/services/new">新增服务</a></div>
+            <div id="adminServicesList" class="empty">正在读取服务目录...</div>
+          </section>
+        </div>
+      </section>
+    </main>
+  `);
+  fetchAdminServices()
+    .then((services) => {
+      const target = document.querySelector("#adminServicesList");
+      target.className = "table-wrap";
+      target.innerHTML = `<table class="orders-table"><thead><tr><th>服务</th><th>分类</th><th>价格方式</th><th>状态</th><th>排序</th><th>操作</th></tr></thead><tbody>${services.map((service) => `<tr><td><strong>${escapeHtml(service.name)}</strong><br /><small>${escapeHtml(service.id)}</small></td><td>${escapeHtml(service.categoryId)}</td><td>${escapeHtml(service.priceType)}</td><td><span class="status-pill">${escapeHtml(service.status)}</span></td><td>${service.sortOrder}</td><td><a class="ghost-btn" href="/admin/services/${service.id}">编辑</a> <button class="ghost-btn" type="button" data-duplicate-service="${service.id}">复制</button></td></tr>`).join("")}</tbody></table>`;
+      target.querySelectorAll("[data-duplicate-service]").forEach((button) => button.addEventListener("click", async () => {
+        const newId = window.prompt("请输入副本服务 ID（小写字母、数字和连字符）：", `${button.dataset.duplicateService}-copy`);
+        if (!newId) return;
+        try {
+          const service = await duplicateAdminService(button.dataset.duplicateService, newId);
+          navigate(`/admin/services/${service.id}`);
+        } catch (error) {
+          window.alert(error instanceof Error ? error.message : "复制失败。");
+        }
+      }));
+    })
+    .catch((error) => {
+      if (!getAdminSecret()) return renderAdminLogin("/admin/services");
+      document.querySelector("#adminServicesList").textContent = error.message;
+    });
+}
+
+function serviceFieldRow(field = {}) {
+  const options = Array.isArray(field.options) ? field.options.join("，") : "";
+  return `<div class="service-field-row" data-service-field>
+    <input data-field-id placeholder="字段 ID" value="${escapeHtml(field.id || "")}" />
+    <input data-field-label placeholder="显示名称" value="${escapeHtml(field.label || "")}" />
+    <select data-field-type>${["text", "single", "multi", "date", "number", "attachment"].map((type) => `<option value="${type}" ${type === field.type ? "selected" : ""}>${{ text: "文本", single: "单选", multi: "多选", date: "日期", number: "数字", attachment: "附件" }[type]}</option>`).join("")}</select>
+    <input data-field-options placeholder="选项，用逗号分隔" value="${escapeHtml(options)}" />
+    <label><input data-field-required type="checkbox" ${field.required ? "checked" : ""} /> 必填</label>
+    <button class="ghost-btn" type="button" data-remove-field>删除</button>
+  </div>`;
+}
+
+function readServiceEditor(form) {
+  const data = Object.fromEntries(new FormData(form).entries());
+  const lines = (value) => String(value || "").split(/\n/).map((item) => item.trim()).filter(Boolean);
+  const formSchema = [...form.querySelectorAll("[data-service-field]")].map((row, index) => ({
+    id: row.querySelector("[data-field-id]").value.trim() || `field-${index + 1}`,
+    label: row.querySelector("[data-field-label]").value.trim(),
+    type: row.querySelector("[data-field-type]").value,
+    options: String(row.querySelector("[data-field-options]").value || "").split(/[，,]/).map((item) => item.trim()).filter(Boolean),
+    required: row.querySelector("[data-field-required]").checked,
+    placeholder: "",
+  })).filter((field) => field.label);
+  return {
+    id: data.id,
+    categoryId: data.categoryId,
+    dailyHelpGroup: data.dailyHelpGroup,
+    name: data.name,
+    imageUrl: data.imageUrl,
+    shortDescription: data.shortDescription,
+    description: data.description,
+    serviceAreas: lines(data.serviceAreas),
+    includes: lines(data.includes),
+    excludes: lines(data.excludes),
+    owner: data.owner,
+    estimatedTime: data.estimatedTime,
+    cancellationRule: data.cancellationRule,
+    pricingMode: data.pricingMode,
+    priceText: data.priceText,
+    fixedAmountEURMinor: data.fixedAmountEUR ? Math.round(Number(data.fixedAmountEUR) * 100) : null,
+    depositCNY: data.depositCNY ? Math.round(Number(data.depositCNY)) : null,
+    formSchema,
+    status: data.status,
+    sortOrder: Number(data.sortOrder || 100),
+    changeNote: data.changeNote,
+  };
+}
+
+function renderServicePreview(input) {
+  const target = document.querySelector("#servicePreview");
+  if (!target) return;
+  target.innerHTML = `<article class="service-card"><div class="tag-list"><span class="tag gold">${escapeHtml({ consultation: "仅咨询", manual_quote: "人工报价", fixed_price: "固定价", deposit: "预约金" }[input.pricingMode] || "人工报价")}</span><span class="tag">${escapeHtml(input.status)}</span></div><h3>${escapeHtml(input.name || "未命名服务")}</h3><p>${escapeHtml(input.shortDescription || input.description || "暂无说明")}</p><div class="price">${escapeHtml(input.priceText || "待客服评估")}</div><p><strong>服务地区：</strong>${input.serviceAreas.map(escapeHtml).join("、") || "待确认"}</p><p><strong>预计安排：</strong>${escapeHtml(input.estimatedTime || "待确认")}</p><div class="card-actions"><span class="primary-btn">客户提交需求</span></div></article>`;
+  target.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function renderAdminServiceEditor(serviceId) {
+  if (!getAdminSecret()) return renderAdminLogin(`/admin/services/${serviceId}`);
+  const isNew = serviceId === "new";
+  shell(`<main><div class="container page-title"><h1>${isNew ? "新增服务" : "编辑服务"}</h1><p class="section-desc">先保存草稿并预览，确认后再将状态改为“published”。</p></div><section class="section" style="padding-top:0"><div class="container" id="serviceEditorRoot"><div class="card empty">正在准备编辑器...</div></div></section></main>`);
+  const ready = isNew ? Promise.resolve({ service: { id: "", categoryId: "daily-help", dailyHelpGroup: "", name: "", imageUrl: "", short: "", intro: "", serviceAreas: [], includes: [], excludes: [], owner: "", time: "", refund: "", pricingMode: "manual_quote", price: "待客服评估", fixedAmountEURMinor: null, depositCNY: null, formSchema: [], status: "draft", sortOrder: 100 }, versions: [] }) : fetchAdminService(serviceId);
+  ready.then(({ service, versions = [] }) => {
+    const root = document.querySelector("#serviceEditorRoot");
+    root.innerHTML = `<form id="serviceEditorForm" class="form-panel"><div class="form-grid">
+      <div class="field"><label for="serviceId">服务 ID</label><input id="serviceId" name="id" value="${escapeHtml(service.id)}" ${isNew ? "required" : "disabled"} placeholder="daily-example-service" /></div>
+      <div class="field"><label for="serviceName">服务名称</label><input id="serviceName" name="name" value="${escapeHtml(service.name)}" required /></div>
+      <div class="field"><label for="categoryId">主营分类</label><select id="categoryId" name="categoryId">${[...CATEGORIES.map((item) => [item.id, item.title]), ["daily-help", "日常帮忙"]].map(([id, label]) => `<option value="${id}" ${id === service.categoryId ? "selected" : ""}>${label}</option>`).join("")}</select></div>
+      <div class="field"><label for="dailyHelpGroup">日常帮忙分组</label><select id="dailyHelpGroup" name="dailyHelpGroup"><option value="">不展示在日常帮忙</option>${DAILY_HELP_GROUPS.map((group) => `<option value="${group.id}" ${group.id === service.dailyHelpGroup ? "selected" : ""}>${group.title}</option>`).join("")}</select></div>
+      <div class="field full"><label for="imageUrl">图片 URL</label><input id="imageUrl" name="imageUrl" value="${escapeHtml(service.imageUrl || "")}" placeholder="https://... 或 /assets/..." /></div>
+      <div class="field full"><label for="shortDescription">列表说明</label><textarea id="shortDescription" name="shortDescription">${escapeHtml(service.short || "")}</textarea></div>
+      <div class="field full"><label for="description">详情说明</label><textarea id="description" name="description">${escapeHtml(service.intro || "")}</textarea></div>
+      <div class="field"><label for="serviceAreas">服务地区（每行一项）</label><textarea id="serviceAreas" name="serviceAreas">${escapeHtml((service.serviceAreas || []).join("\n"))}</textarea></div>
+      <div class="field"><label for="owner">负责人</label><input id="owner" name="owner" value="${escapeHtml(service.owner || "")}" /></div>
+      <div class="field full"><label for="includes">包含项目（每行一项）</label><textarea id="includes" name="includes">${escapeHtml((service.includes || []).join("\n"))}</textarea></div>
+      <div class="field full"><label for="excludes">不包含项目（每行一项）</label><textarea id="excludes" name="excludes">${escapeHtml((service.excludes || []).join("\n"))}</textarea></div>
+      <div class="field full"><label for="estimatedTime">预计安排时间</label><input id="estimatedTime" name="estimatedTime" value="${escapeHtml(service.time || "")}" /></div>
+      <div class="field full"><label for="cancellationRule">取消规则</label><textarea id="cancellationRule" name="cancellationRule">${escapeHtml(service.refund || "")}</textarea></div>
+      <div class="field"><label for="pricingMode">价格方式</label><select id="pricingMode" name="pricingMode">${[["consultation", "仅咨询"], ["manual_quote", "人工报价"], ["fixed_price", "固定价"], ["deposit", "预约金"]].map(([value, label]) => `<option value="${value}" ${value === service.pricingMode ? "selected" : ""}>${label}</option>`).join("")}</select></div>
+      <div class="field"><label for="priceText">价格说明</label><input id="priceText" name="priceText" value="${escapeHtml(service.price || "待客服评估")}" /></div>
+      <div class="field"><label for="fixedAmountEUR">固定价（欧元，选填）</label><input id="fixedAmountEUR" name="fixedAmountEUR" type="number" min="0" step="0.01" value="${service.fixedAmountEURMinor != null ? Number(service.fixedAmountEURMinor) / 100 : ""}" /></div>
+      <div class="field"><label for="depositCNY">预约金（人民币，选填）</label><input id="depositCNY" name="depositCNY" type="number" min="0" step="1" value="${escapeHtml(service.depositCNY ?? "")}" /></div>
+      <div class="field"><label for="status">状态</label><select id="status" name="status">${[["draft", "草稿"], ["published", "上架"], ["paused", "暂停"], ["archived", "下架"]].map(([value, label]) => `<option value="${value}" ${value === service.status ? "selected" : ""}>${label}</option>`).join("")}</select></div>
+      <div class="field"><label for="sortOrder">排序</label><input id="sortOrder" name="sortOrder" type="number" value="${escapeHtml(service.sortOrder ?? 100)}" /></div>
+      <div class="field full"><label for="changeNote">修改说明</label><input id="changeNote" name="changeNote" placeholder="例如：确认负责人和报价后发布" /></div>
+    </div>
+    <section class="service-form-builder"><div class="section-head"><div><h2>客户表单字段</h2><p class="section-desc">支持文本、单选、多选、日期、数字和附件。</p></div><button class="ghost-btn" id="addServiceField" type="button">增加字段</button></div><div id="serviceFieldRows">${(service.formSchema || []).map(serviceFieldRow).join("")}</div></section>
+    <div class="card-actions" style="margin-top:18px"><button class="primary-btn" type="submit">保存</button><button class="ghost-btn" id="previewService" type="button">预览</button><a class="ghost-btn" href="/admin/services">返回服务目录</a></div><p id="serviceEditorResult" class="form-result" aria-live="polite"></p></form>
+    <section id="servicePreview" class="service-preview-panel"></section>
+    ${versions.length ? `<section class="card detail-block"><h2>修改记录</h2><ul class="clean-list">${versions.map((version) => `<li>版本 ${version.version}｜${escapeHtml(version.change_note || "更新")}｜${escapeHtml(version.changed_by || "管理员")}｜${new Date(version.created_at).toLocaleString("zh-CN")}</li>`).join("")}</ul></section>` : ""}`;
+    const form = document.querySelector("#serviceEditorForm");
+    const rows = document.querySelector("#serviceFieldRows");
+    const bindRemove = () => rows.querySelectorAll("[data-remove-field]").forEach((button) => button.onclick = () => button.closest("[data-service-field]").remove());
+    bindRemove();
+    document.querySelector("#addServiceField").addEventListener("click", () => { rows.insertAdjacentHTML("beforeend", serviceFieldRow()); bindRemove(); });
+    document.querySelector("#previewService").addEventListener("click", () => renderServicePreview(readServiceEditor(form)));
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const result = document.querySelector("#serviceEditorResult");
+      const payload = readServiceEditor(form);
+      try {
+        const saved = isNew ? await createAdminService(payload) : await updateAdminService(serviceId, payload);
+        result.textContent = `已保存：${saved.name}（${saved.status}）`;
+        await loadServiceCatalog();
+        if (isNew) navigate(`/admin/services/${saved.id}`, { replace: true });
+      } catch (error) {
+        result.textContent = error instanceof Error ? error.message : "保存失败，请稍后重试。";
+      }
+    });
+  }).catch((error) => {
+    if (!getAdminSecret()) return renderAdminLogin(`/admin/services/${serviceId}`);
+    document.querySelector("#serviceEditorRoot").innerHTML = `<div class="card empty">${escapeHtml(error.message)}</div>`;
+  });
 }
 
 function renderAdminDetail(orderId) {
@@ -1391,6 +1828,7 @@ function renderAdminDetailForm(order, warning = "") {
       ? Math.abs(Number(order.depositCNY) - Number(payment.amountCNY)) < 0.01
       : null;
   const amountMatchText = paymentAmountMatches === null ? "待提交 / 待核对" : paymentAmountMatches ? "一致" : "不一致";
+  const quote = order.quote || {};
   target.className = "container detail-layout";
   target.innerHTML = `
     <section class="form-panel">
@@ -1415,6 +1853,17 @@ function renderAdminDetailForm(order, warning = "") {
         <div class="field"><label for="paymentCheckedAt">核款 / 到账时间</label><input id="paymentCheckedAt" name="paymentCheckedAt" type="datetime-local" value="${escapeHtml(adminPayment.checkedAt ? localDateTimeValue(new Date(adminPayment.checkedAt)) : "")}" /></div>
         <div class="field"><label for="paymentCheckedBy">核款人</label><input id="paymentCheckedBy" name="paymentCheckedBy" value="${escapeHtml(adminPayment.checkedBy || order.admin?.owner || "")}" /></div>
         <div class="field full"><label for="paymentCheckNotes">核款备注</label><textarea id="paymentCheckNotes" name="paymentCheckNotes">${escapeHtml(adminPayment.checkNotes || "")}</textarea></div>
+        <div class="field full"><h3>客服评估与公开回复</h3></div>
+        <div class="field full"><label for="publicReply">给客户的回复</label><textarea id="publicReply" name="publicReply" placeholder="无法承接时请在这里说明原因或替代建议。">${escapeHtml(order.publicReply || "")}</textarea></div>
+        <div class="field full"><label for="publicProgressNote">本次进度说明</label><textarea id="publicProgressNote" name="publicProgressNote" placeholder="保存后会进入客户可见的进度记录。"></textarea></div>
+        <div class="field full"><h3>报价明细（欧元）</h3><p class="section-desc">发送新报价或新增费用后，客户必须重新确认。</p></div>
+        <div class="field"><label for="quoteStatus">报价状态</label><select id="quoteStatus" name="quoteStatus">${[["not_quoted", "未报价"], ["draft", "草稿"], ["sent", "发送客户确认"], ["confirmed", "客户已确认"], ["rejected", "客户要求调整"]].map(([value, label]) => `<option value="${value}" ${value === quote.status ? "selected" : ""}>${label}</option>`).join("")}</select></div>
+        <div class="field"><label for="quoteServiceFee">平台服务费</label><input id="quoteServiceFee" name="quoteServiceFee" type="number" min="0" step="0.01" value="${quote.serviceFeeEURMinor != null ? Number(quote.serviceFeeEURMinor) / 100 : ""}" /></div>
+        <div class="field"><label for="quoteThirdPartyFee">第三方人工费</label><input id="quoteThirdPartyFee" name="quoteThirdPartyFee" type="number" min="0" step="0.01" value="${quote.thirdPartyFeeEURMinor != null ? Number(quote.thirdPartyFeeEURMinor) / 100 : ""}" /></div>
+        <div class="field"><label for="quoteMaterialFee">材料费</label><input id="quoteMaterialFee" name="quoteMaterialFee" type="number" min="0" step="0.01" value="${quote.materialFeeEURMinor != null ? Number(quote.materialFeeEURMinor) / 100 : ""}" /></div>
+        <div class="field"><label for="quoteOtherFee">其他费用</label><input id="quoteOtherFee" name="quoteOtherFee" type="number" min="0" step="0.01" value="${quote.otherFeeEURMinor != null ? Number(quote.otherFeeEURMinor) / 100 : ""}" /></div>
+        <div class="field"><label>报价合计</label><input value="${euroMinor(quote.totalEURMinor)}" disabled /></div>
+        <div class="field full"><label for="quoteOtherNote">其他费用说明</label><textarea id="quoteOtherNote" name="quoteOtherNote">${escapeHtml(quote.otherNote || "")}</textarea></div>
         <div class="field full"><label for="internalNote">内部备注</label><textarea id="internalNote" name="internalNote">${escapeHtml(order.admin?.internalNote || "")}</textarea></div>
         <div class="field full"><label for="result">服务结果说明</label><textarea id="result" name="result">${escapeHtml(order.admin?.result || "")}</textarea></div>
         <div class="field full"><button class="primary-btn" type="submit">保存修改</button></div>
@@ -1429,10 +1878,13 @@ function renderAdminDetailForm(order, warning = "") {
       <p><strong>邮箱：</strong>${escapeHtml(order.customer.email || "未填写")}</p>
       <p><strong>国家 / 城市：</strong>${escapeHtml(order.customer.country || "")} / ${escapeHtml(order.customer.city || "")}</p>
       <p><strong>希望时间：</strong>${escapeHtml(order.request.preferredTime || "未填写")}</p>
+      <p><strong>客户位置：</strong>${escapeHtml({ athens: "我在雅典", "outside-athens": "我不在雅典", other: "其他所在地" }[order.request.locationStatus] || order.request.locationStatus || "未填写")}</p>
       <p><strong>中文陪同：</strong>${order.request.chineseCompanion ? "需要" : "不需要"}</p>
       <p><strong>上传资料：</strong>${order.request.uploadNeeded ? "需要" : "不需要"}</p>
       <p><strong>需求描述：</strong>${escapeHtml(order.request.description || "未填写")}</p>
       <p><strong>备注：</strong>${escapeHtml(order.request.note || "无")}</p>
+      ${Object.keys(order.request.customFields || {}).length ? `<h3>服务表单</h3>${Object.entries(order.request.customFields).map(([key, value]) => `<p><strong>${escapeHtml(key)}：</strong>${escapeHtml(Array.isArray(value) ? value.join("、") : value)}</p>`).join("")}` : ""}
+      ${(order.attachments || []).length ? `<h3>附件</h3>${order.attachments.map((item) => `<p><button class="ghost-btn" type="button" data-admin-attachment="${item.id}">${escapeHtml(item.file_name)}（${Math.ceil(Number(item.size_bytes) / 1024)}KB）</button></p>`).join("")}` : ""}
       <div class="card-actions"><a class="ghost-btn" href="/admin">返回后台</a><a class="ghost-btn" href="/orders">用户状态页</a></div>
     </aside>
   `;
@@ -1452,6 +1904,14 @@ function renderAdminDetailForm(order, warning = "") {
         paymentCheckedAt: data.paymentCheckedAt ? new Date(data.paymentCheckedAt).toISOString() : "",
         paymentCheckedBy: data.paymentCheckedBy,
         paymentCheckNotes: data.paymentCheckNotes,
+        publicReply: data.publicReply,
+        publicProgressNote: data.publicProgressNote,
+        quoteStatus: data.quoteStatus,
+        quoteServiceFeeEURMinor: data.quoteServiceFee ? Math.round(Number(data.quoteServiceFee) * 100) : null,
+        quoteThirdPartyFeeEURMinor: data.quoteThirdPartyFee ? Math.round(Number(data.quoteThirdPartyFee) * 100) : null,
+        quoteMaterialFeeEURMinor: data.quoteMaterialFee ? Math.round(Number(data.quoteMaterialFee) * 100) : null,
+        quoteOtherFeeEURMinor: data.quoteOtherFee ? Math.round(Number(data.quoteOtherFee) * 100) : null,
+        quoteOtherNote: data.quoteOtherNote,
       });
       result.textContent = "订单修改已保存并同步到服务端。";
       renderAdminDetail(order.id);
@@ -1459,6 +1919,10 @@ function renderAdminDetailForm(order, warning = "") {
       result.textContent = error instanceof Error ? error.message : "订单保存失败，请稍后重试。";
     }
   });
+  target.querySelectorAll("[data-admin-attachment]").forEach((button) => button.addEventListener("click", async () => {
+    try { await downloadOrderAttachment(order, button.dataset.adminAttachment, true); }
+    catch (error) { window.alert(error instanceof Error ? error.message : "附件下载失败。"); }
+  }));
 }
 
 function renderNotFound() {
@@ -1470,16 +1934,20 @@ function render() {
   document.title = pageTitle(path);
   if (path === "/") return renderHome();
   if (path === "/buyer-service") return renderBuyerService();
+  if (path === "/daily-help") return renderDailyHelp();
   if (path === "/services") return renderServices();
   if (path.startsWith("/services/")) return renderServiceDetail(path.split("/")[2]);
   if (path.startsWith("/order/")) return renderOrderForm(path.split("/")[2]);
   if (path === "/order-success") return renderOrderSuccess();
   if (path === "/orders") return renderOrders();
+  if (path === "/profile") return renderCustomerProfile();
   if (path === "/contact") {
     renderHome();
     window.requestAnimationFrame(() => document.getElementById("contact")?.scrollIntoView({ block: "start" }));
     return;
   }
+  if (path === "/admin/services") return renderAdminServices();
+  if (path.startsWith("/admin/services/")) return renderAdminServiceEditor(path.split("/")[3]);
   if (path === "/admin") return renderAdmin();
   if (path.startsWith("/admin/")) return renderAdminDetail(path.split("/")[2]);
   return renderNotFound();
@@ -1529,4 +1997,4 @@ window.addEventListener("keydown", (event) => {
 
 window.addEventListener("popstate", render);
 normalizeLegacyRoute();
-render();
+loadServiceCatalog().finally(render);
